@@ -221,4 +221,35 @@ export async function run(): Promise<void> {
   } finally {
     await rm(guidedRoot, { recursive: true, force: true });
   }
+
+  // Filesystem watcher rediscovery must track sibling projects without
+  // switching the active graph away from the selected original root.
+  const nestedRoot = vscode.Uri.joinPath(root, 'nested-project');
+  const nestedMarker = vscode.Uri.joinPath(nestedRoot, 'lhp.yaml');
+  const selectedRoot = api.controller.project?.root;
+  await vscode.workspace.fs.createDirectory(nestedRoot);
+  try {
+    await vscode.workspace.fs.writeFile(
+      nestedMarker,
+      Buffer.from('name: nested_host_test\nversion: "1.0"\n'),
+    );
+    await eventually(
+      () => api.controller.projects.some((project) => project.summary.id === nestedRoot.toString()),
+      'new nested LHP project discovery',
+    );
+    assert.equal(api.controller.project?.root, selectedRoot);
+    await vscode.workspace.fs.delete(nestedMarker);
+    await eventually(
+      () =>
+        !api.controller.projects.some((project) => project.summary.id === nestedRoot.toString()),
+      'deleted nested LHP project removal',
+    );
+    assert.equal(api.controller.project?.root, selectedRoot);
+  } finally {
+    try {
+      await vscode.workspace.fs.delete(nestedRoot, { recursive: true });
+    } catch {
+      /* The test's temporary nested folder may already have been removed. */
+    }
+  }
 }

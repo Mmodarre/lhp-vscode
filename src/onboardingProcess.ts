@@ -112,6 +112,7 @@ export function runPythonCommand(
       stdio: ['ignore', 'ignore', 'pipe'],
     });
     let settled = false;
+    let stopping = false;
     let stderr = '';
     child.stderr?.on('data', (chunk: Buffer) => {
       if (stderr.length < 32_768) stderr += chunk.toString('utf8').slice(0, 32_768 - stderr.length);
@@ -124,9 +125,25 @@ export function runPythonCommand(
       if (error) reject(error);
       else resolve();
     };
+    const stop = (error: CommandError): void => {
+      if (settled || stopping) return;
+      stopping = true;
+      void (async () => {
+        try {
+          await terminateProcessTree(child);
+          finish(error);
+        } catch {
+          finish(
+            new CommandError(
+              error.code,
+              `${error.message} A Python process may still be running; check it before retrying.`,
+            ),
+          );
+        }
+      })();
+    };
     const abort = (): void => {
-      terminateProcessTree(child);
-      finish(
+      stop(
         new CommandError(
           'CANCELLED',
           'Setup was cancelled. You can retry the installation or choose another environment folder.',
@@ -134,8 +151,7 @@ export function runPythonCommand(
       );
     };
     const timeout = setTimeout(() => {
-      terminateProcessTree(child);
-      finish(
+      stop(
         new CommandError(
           'TIMEOUT',
           'Python setup timed out. Check network access, then retry or choose another environment folder.',
@@ -143,10 +159,12 @@ export function runPythonCommand(
       );
     }, timeoutMs);
     signal?.addEventListener('abort', abort, { once: true });
-    child.on('error', () =>
-      finish(new CommandError('START_FAILED', 'Could not start the selected Python executable.')),
-    );
-    child.on('close', (code) =>
+    child.on('error', () => {
+      if (!stopping)
+        finish(new CommandError('START_FAILED', 'Could not start the selected Python executable.'));
+    });
+    child.on('close', (code) => {
+      if (stopping) return;
       finish(
         code === 0
           ? undefined
@@ -154,7 +172,7 @@ export function runPythonCommand(
               'EXIT_FAILED',
               `Python setup failed (exit ${code ?? 'unknown'}). ${failureGuidance(stderr, args)} You can retry the installation or choose another environment folder.`,
             ),
-      ),
-    );
+      );
+    });
   });
 }

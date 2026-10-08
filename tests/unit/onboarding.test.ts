@@ -14,6 +14,25 @@ import {
   runPythonCommand,
 } from '../../src/onboardingProcess';
 
+async function waitForFile(file: string): Promise<void> {
+  const deadline = Date.now() + 5000;
+  while (Date.now() < deadline) {
+    try {
+      await readFile(file);
+      return;
+    } catch (error) {
+      if (!(error instanceof Error && 'code' in error && error.code === 'ENOENT')) throw error;
+      await new Promise((resolve) => setTimeout(resolve, 20));
+    }
+  }
+  throw new Error(`Timed out waiting for child startup: ${file}`);
+}
+
+function workerScript(marker: string, ready: string, markerDelayMs: number): string {
+  const childCode = `setTimeout(() => require('node:fs').writeFileSync(${JSON.stringify(marker)}, 'ran'), ${markerDelayMs})`;
+  return `require('node:child_process').spawn(process.execPath, ['-e', ${JSON.stringify(childCode)}], { stdio: 'ignore', windowsHide: true }); require('node:fs').writeFileSync(${JSON.stringify(ready)}, 'ready'); setTimeout(() => {}, 10000)`;
+}
+
 describe('safe LHP onboarding boundaries', () => {
   let parent: string;
   beforeEach(async () => {
@@ -43,16 +62,13 @@ describe('safe LHP onboarding boundaries', () => {
     expect(call).toHaveBeenCalledTimes(1);
   });
 
-  it.skipIf(process.platform === 'win32')(
-    'rejects a symlink target even when its destination is empty',
-    async () => {
-      const destination = path.join(parent, 'destination');
-      await mkdir(destination);
-      const link = path.join(parent, 'project');
-      await symlink(destination, link);
-      await expect(assertEmptyTarget(link)).rejects.toThrow('symlink');
-    },
-  );
+  it('rejects a symlink or junction target even when its destination is empty', async () => {
+    const destination = path.join(parent, 'destination');
+    await mkdir(destination);
+    const link = path.join(parent, 'project');
+    await symlink(destination, link, process.platform === 'win32' ? 'junction' : 'dir');
+    await expect(assertEmptyTarget(link)).rejects.toThrow('symlink');
+  });
 
   it('surfaces public bootstrap failure without claiming the project was created', async () => {
     const target = path.join(parent, 'project');
@@ -113,24 +129,36 @@ describe('safe LHP onboarding boundaries', () => {
     expect(message).not.toContain(secret);
   });
 
-  it.skipIf(process.platform === 'win32')(
-    'cancels Python and its spawned worker process',
-    async () => {
-      const marker = path.join(parent, 'grandchild-marker');
-      const childCode = `setTimeout(() => require('node:fs').writeFileSync(${JSON.stringify(marker)}, 'ran'), 350)`;
-      const parentCode = `require('node:child_process').spawn(process.execPath, ['-e', ${JSON.stringify(childCode)}], { stdio: 'ignore' }); setTimeout(() => {}, 5000)`;
-      const controller = new AbortController();
-      const running = runPythonCommand(
-        process.execPath,
-        ['-e', parentCode],
-        parent,
-        controller.signal,
-      );
-      await new Promise((resolve) => setTimeout(resolve, 100));
-      controller.abort();
-      await expect(running).rejects.toMatchObject({ code: 'CANCELLED' });
-      await new Promise((resolve) => setTimeout(resolve, 500));
-      await expect(readFile(marker)).rejects.toMatchObject({ code: 'ENOENT' });
-    },
-  );
+  it('waits for cancellation of Python and its spawned worker process', async () => {
+    const marker = path.join(parent, 'cancel-grandchild-marker');
+    const ready = path.join(parent, 'cancel-parent-ready');
+    const controller = new AbortController();
+    const running = runPythonCommand(
+      process.execPath,
+      ['-e', workerScript(marker, ready, 1000)],
+      parent,
+      controller.signal,
+    );
+    await waitForFile(ready);
+    controller.abort();
+    await expect(running).rejects.toMatchObject({ code: 'CANCELLED' });
+    await new Promise((resolve) => setTimeout(resolve, 1100));
+    await expect(readFile(marker)).rejects.toMatchObject({ code: 'ENOENT' });
+  });
+
+  it('times out Python setup and stops its spawned worker before returning', async () => {
+    const marker = path.join(parent, 'timeout-grandchild-marker');
+    const ready = path.join(parent, 'timeout-parent-ready');
+    const running = runPythonCommand(
+      process.execPath,
+      ['-e', workerScript(marker, ready, 2500)],
+      parent,
+      undefined,
+      1200,
+    );
+    await waitForFile(ready);
+    await expect(running).rejects.toMatchObject({ code: 'TIMEOUT' });
+    await new Promise((resolve) => setTimeout(resolve, 1400));
+    await expect(readFile(marker)).rejects.toMatchObject({ code: 'ENOENT' });
+  });
 });
