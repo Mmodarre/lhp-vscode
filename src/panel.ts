@@ -5,6 +5,13 @@ import type { HostMessage, WebviewRequest } from './shared/protocol';
 
 export class DesignerPanel implements vscode.Disposable {
   private panel?: vscode.WebviewPanel;
+  private ready = false;
+  get isReady(): boolean {
+    return !!this.panel && this.ready;
+  }
+  markReady(): void {
+    if (this.panel) this.ready = true;
+  }
   constructor(
     private readonly extensionUri: vscode.Uri,
     private readonly receive: (request: WebviewRequest) => Promise<void>,
@@ -25,6 +32,7 @@ export class DesignerPanel implements vscode.Disposable {
       },
     );
     this.panel = panel;
+    this.ready = false;
     const webview = panel.webview;
     const nonce = randomBytes(24).toString('base64');
     const script = webview.asWebviewUri(
@@ -45,6 +53,7 @@ export class DesignerPanel implements vscode.Disposable {
     panel.onDidDispose(() => {
       listener.dispose();
       this.panel = undefined;
+      this.ready = false;
     });
   }
   post(message: HostMessage): void {

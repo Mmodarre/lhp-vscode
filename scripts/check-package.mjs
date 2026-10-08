@@ -1,7 +1,7 @@
 import * as yauzl from 'yauzl';
 import { readFile } from 'node:fs/promises';
 import { createHash } from 'node:crypto';
-const filename = '.tmp/lhp-vscode-0.1.1.vsix';
+const filename = '.tmp/lhp-vscode-0.1.2.vsix';
 const required = new Set([
   'extension/package.json',
   'extension/dist/extension.js',
@@ -10,6 +10,7 @@ const required = new Set([
   'extension/dist/THIRD_PARTY_LICENSES.txt',
   'extension/bridge/lhp_bridge.py',
   'extension/media/icon.png',
+  'extension/media/activity.svg',
   'extension/LICENSE.txt',
   'extension/NOTICE',
 ]);

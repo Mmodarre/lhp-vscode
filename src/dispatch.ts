@@ -20,7 +20,7 @@ export async function dispatch(host: Controller, request: WebviewRequest): Promi
   } else if (!contextFree.includes(request.type)) host.assertContext(request);
   switch (request.type) {
     case 'ready':
-      host.bootstrap();
+      host.designerReady();
       break;
     case 'refresh':
       await host.refresh();

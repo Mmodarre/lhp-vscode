@@ -1,15 +1,18 @@
 import * as vscode from 'vscode';
 import { Controller } from './controller';
 import { LanguageServices } from './languageServices';
+import { ProjectSidebar } from './sidebar';
 
 export interface ExtensionApi {
   controller: Controller;
   languages: LanguageServices;
+  sidebar: ProjectSidebar;
 }
 export async function activate(context: vscode.ExtensionContext): Promise<ExtensionApi> {
   const languages = new LanguageServices();
   const controller = new Controller(context, (snapshot, root) => languages.update(root, snapshot));
-  context.subscriptions.push(controller, languages);
+  const sidebar = new ProjectSidebar(controller);
+  context.subscriptions.push(controller, languages, sidebar);
   const commands: Record<string, () => Promise<unknown> | void> = {
     openDesigner: () => controller.show(),
     refresh: () => controller.refresh(),
@@ -45,5 +48,5 @@ export async function activate(context: vscode.ExtensionContext): Promise<Extens
     }),
   );
   await controller.discover().catch((error) => controller.report(error));
-  return { controller, languages };
+  return { controller, languages, sidebar };
 }

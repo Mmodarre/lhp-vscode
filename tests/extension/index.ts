@@ -8,6 +8,7 @@ import { createBundlePipelineConfig } from '../../src/onboarding';
 import { generateSavedProject } from '../../src/projectOperations';
 import { snapshotDocuments } from '../../src/documents';
 import type { ActionMutation, ProjectSnapshot, WebviewRequest } from '../../src/shared/protocol';
+import { runSidebarTests } from './sidebar';
 
 let nextRequestId = 0;
 const requestId = (): string => `extension-test-${++nextRequestId}`;
@@ -57,6 +58,7 @@ export async function run(): Promise<void> {
   await api.controller.refresh();
   assert.ok(current(api).context.runtime.compatible, current(api).context.runtime.message);
   assert.ok(current(api).flowgroups.length > 0);
+  await runSidebarTests(api);
   const root = vscode.workspace.workspaceFolders![0]!.uri;
   const ordersUri = vscode.Uri.joinPath(root, 'pipelines/orders.yaml');
   assert.ok(

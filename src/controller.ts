@@ -19,6 +19,7 @@ import {
   type OperationStatus,
   type ProjectSnapshot,
   type RuntimeInfo,
+  type DesignerSelection,
   type WebviewRequest,
 } from './shared/protocol';
 
@@ -31,6 +32,10 @@ export class Controller implements vscode.Disposable {
   project?: Project;
   snapshot?: ProjectSnapshot;
   epoch = 0;
+  private readonly stateChanged = new vscode.EventEmitter<void>();
+  readonly onDidChangeState = this.stateChanged.event;
+  private designerSelection?: DesignerSelection;
+  status?: OperationStatus;
   private discovery = 0;
   private operation?: {
     controller: AbortController;
@@ -113,6 +118,7 @@ export class Controller implements vscode.Disposable {
         refreshError: undefined,
       };
       this.panel.post({ type: 'snapshot', snapshot: this.snapshot });
+      this.stateChanged.fire();
     }
     clearTimeout(this.timer);
     this.timer = setTimeout(() => {
@@ -133,6 +139,7 @@ export class Controller implements vscode.Disposable {
   }
   private invalidate(): void {
     this.epoch++;
+    this.designerSelection = undefined;
     this.operation?.controller.abort();
     this.previews.clear();
   }
@@ -162,7 +169,33 @@ export class Controller implements vscode.Disposable {
       projects: this.projects.map((p) => p.summary),
       snapshot: this.snapshot,
       trusted: vscode.workspace.isTrusted,
+      selection: this.designerSelection,
     });
+    this.stateChanged.fire();
+  }
+  /** Ready handshakes consume navigation once; ordinary refreshes never replay it. */
+  designerReady(): void {
+    this.panel.markReady();
+    this.bootstrap();
+    this.designerSelection = undefined;
+  }
+  showSelection(selection: DesignerSelection): void {
+    this.requireProject();
+    if (selection.projectId !== this.project?.summary.id || selection.revision !== this.epoch)
+      throw new Error('This tree selection is stale. Select a current item.');
+    const wasReady = this.panel.isReady;
+    this.designerSelection = wasReady ? undefined : selection;
+    this.panel.show();
+    this.bootstrap();
+    if (wasReady) {
+      this.panel.post({ type: 'select', selection });
+      this.designerSelection = undefined;
+    }
+  }
+  private publishStatus(status: OperationStatus): void {
+    this.status = status;
+    this.panel.post({ type: 'status', status });
+    this.stateChanged.fire();
   }
   async discover(): Promise<void> {
     const discovery = ++this.discovery;
@@ -187,7 +220,7 @@ export class Controller implements vscode.Disposable {
     this.panel.show();
     this.bootstrap();
     if (!this.projects.length) await this.discover();
-    else await this.refresh();
+    else if (!this.snapshot && !this.isOperating) await this.refresh();
   }
   environment(project: Project): string {
     return (
@@ -232,18 +265,15 @@ export class Controller implements vscode.Disposable {
         vscode.workspace.getConfiguration('lhp').get<number>('operationTimeoutSeconds', 180) * 1000,
       onEvent: (event) => {
         if (!signal.aborted)
-          this.panel.post({
-            type: 'status',
-            status: {
-              operation:
-                operation === 'scaffold'
-                  ? 'create'
-                  : operation === 'catalog' || operation === 'health' || operation === 'init'
-                    ? 'snapshot'
-                    : operation,
-              running: true,
-              message: text(event.message, text(event.kind)),
-            },
+          this.publishStatus({
+            operation:
+              operation === 'scaffold'
+                ? 'create'
+                : operation === 'catalog' || operation === 'health' || operation === 'init'
+                  ? 'snapshot'
+                  : operation,
+            running: true,
+            message: text(event.message, text(event.kind)),
           });
       },
     });
@@ -272,10 +302,7 @@ export class Controller implements vscode.Disposable {
     const current = { controller: new AbortController(), operation, completion };
     this.operation = current;
     let failed = false;
-    this.panel.post({
-      type: 'status',
-      status: { operation, running: true, message: `LHP ${operation}…` },
-    });
+    this.publishStatus({ operation, running: true, message: `LHP ${operation}…` });
     try {
       return await vscode.window.withProgress(
         {
@@ -303,19 +330,16 @@ export class Controller implements vscode.Disposable {
     } finally {
       if (this.operation === current) {
         this.operation = undefined;
-        this.panel.post({
-          type: 'status',
-          status: {
-            operation,
-            running: false,
-            message: this.shutdownFailed
-              ? 'Python shutdown failed.'
-              : current.controller.signal.aborted
-                ? 'Operation cancelled.'
-                : failed
-                  ? 'Operation failed.'
-                  : 'Ready.',
-          },
+        this.publishStatus({
+          operation,
+          running: false,
+          message: this.shutdownFailed
+            ? 'Python shutdown failed.'
+            : current.controller.signal.aborted
+              ? 'Operation cancelled.'
+              : failed
+                ? 'Operation failed.'
+                : 'Ready.',
         });
       }
       complete();
@@ -332,6 +356,7 @@ export class Controller implements vscode.Disposable {
     if (epoch !== this.epoch || project !== this.project) return;
     this.snapshot = snapshot;
     this.panel.post({ type: 'snapshot', snapshot });
+    this.stateChanged.fire();
     await this.problems.update(
       project.root,
       snapshot.diagnostics,
@@ -437,6 +462,7 @@ export class Controller implements vscode.Disposable {
     this.problems.dispose();
     this.previews.dispose();
     this.output.dispose();
+    this.stateChanged.dispose();
     for (const disposable of this.subscriptions) disposable.dispose();
   }
 }

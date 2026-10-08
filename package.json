@@ -2,7 +2,7 @@
   "name": "lhp-vscode",
   "displayName": "Lakehouse Plumber",
   "description": "Native YAML, guided graphs and forms for Lakehouse Plumber pipelines.",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "publisher": "Mmodarre",
   "license": "Apache-2.0",
   "repository": {
@@ -65,7 +65,8 @@
       {
         "command": "lhp.refresh",
         "title": "Refresh Project",
-        "category": "LHP"
+        "category": "LHP",
+        "icon": "$(refresh)"
       },
       {
         "command": "lhp.selectProject",
@@ -75,47 +76,76 @@
       {
         "command": "lhp.selectInterpreter",
         "title": "Select Python Interpreter",
-        "category": "LHP"
+        "category": "LHP",
+        "enablement": "isWorkspaceTrusted && !lhp.operationRunning"
       },
       {
         "command": "lhp.setupEnvironment",
         "title": "Set Up Python Environment",
-        "category": "LHP"
+        "category": "LHP",
+        "enablement": "isWorkspaceTrusted && !lhp.operationRunning"
       },
       {
         "command": "lhp.createProject",
         "title": "Create Project",
-        "category": "LHP"
+        "category": "LHP",
+        "enablement": "isWorkspaceTrusted && !lhp.operationRunning"
       },
       {
         "command": "lhp.selectEnvironment",
         "title": "Select Environment",
-        "category": "LHP"
+        "category": "LHP",
+        "enablement": "isWorkspaceTrusted && lhp.hasProject && !lhp.operationRunning"
       },
       {
         "command": "lhp.validate",
         "title": "Validate Project",
-        "category": "LHP"
+        "category": "LHP",
+        "enablement": "isWorkspaceTrusted && lhp.hasProject && !lhp.operationRunning"
       },
       {
         "command": "lhp.preview",
         "title": "Preview Generated Source",
-        "category": "LHP"
+        "category": "LHP",
+        "enablement": "isWorkspaceTrusted && lhp.hasProject && !lhp.operationRunning"
       },
       {
         "command": "lhp.generate",
         "title": "Generate Full Project",
-        "category": "LHP"
+        "category": "LHP",
+        "enablement": "isWorkspaceTrusted && lhp.hasProject && !lhp.operationRunning"
       },
       {
         "command": "lhp.openDatabricks",
         "title": "Open Databricks Bundle",
-        "category": "LHP"
+        "category": "LHP",
+        "enablement": "isWorkspaceTrusted && lhp.hasProject && !lhp.operationRunning"
       },
       {
         "command": "lhp.cancel",
         "title": "Cancel Current Operation",
-        "category": "LHP"
+        "category": "LHP",
+        "icon": "$(debug-stop)"
+      },
+      {
+        "command": "lhp.sidebar.selectProject",
+        "title": "Select Project",
+        "category": "LHP",
+        "enablement": "isWorkspaceTrusted"
+      },
+      {
+        "command": "lhp.sidebar.openSource",
+        "title": "Open Source",
+        "category": "LHP",
+        "icon": "$(go-to-file)",
+        "enablement": "isWorkspaceTrusted"
+      },
+      {
+        "command": "lhp.sidebar.openDesigner",
+        "title": "Open in Designer",
+        "category": "LHP",
+        "icon": "$(type-hierarchy)",
+        "enablement": "isWorkspaceTrusted"
       }
     ],
     "menus": {
@@ -131,6 +161,94 @@
           "command": "lhp.openDesigner",
           "when": "resourceFilename == lhp.yaml",
           "group": "navigation"
+        }
+      ],
+      "view/title": [
+        {
+          "command": "lhp.openDesigner",
+          "when": "view == lhp.projects",
+          "group": "navigation@1"
+        },
+        {
+          "command": "lhp.refresh",
+          "when": "view == lhp.projects && isWorkspaceTrusted && lhp.hasProject",
+          "group": "navigation@2"
+        },
+        {
+          "command": "lhp.cancel",
+          "when": "view == lhp.projects && lhp.operationRunning",
+          "group": "navigation@3"
+        },
+        {
+          "command": "lhp.validate",
+          "when": "view == lhp.projects",
+          "group": "1_operations@0"
+        },
+        {
+          "command": "lhp.preview",
+          "when": "view == lhp.projects",
+          "group": "1_operations@1"
+        },
+        {
+          "command": "lhp.generate",
+          "when": "view == lhp.projects",
+          "group": "1_operations@2"
+        },
+        {
+          "command": "lhp.selectEnvironment",
+          "when": "view == lhp.projects",
+          "group": "2_project@3"
+        },
+        {
+          "command": "lhp.selectInterpreter",
+          "when": "view == lhp.projects",
+          "group": "2_project@4"
+        },
+        {
+          "command": "lhp.setupEnvironment",
+          "when": "view == lhp.projects",
+          "group": "2_project@5"
+        },
+        {
+          "command": "lhp.createProject",
+          "when": "view == lhp.projects",
+          "group": "2_project@6"
+        },
+        {
+          "command": "lhp.openDatabricks",
+          "when": "view == lhp.projects",
+          "group": "2_project@7"
+        }
+      ],
+      "view/item/context": [
+        {
+          "command": "lhp.sidebar.openDesigner",
+          "when": "view == lhp.projects && viewItem != lhp.file",
+          "group": "inline@1"
+        },
+        {
+          "command": "lhp.sidebar.openSource",
+          "when": "view == lhp.projects && viewItem =~ /^lhp\\.(project|flowgroup|action|file)$/",
+          "group": "navigation@1"
+        },
+        {
+          "command": "lhp.sidebar.selectProject",
+          "when": "view == lhp.projects && viewItem == lhp.project.inactive",
+          "group": "navigation@2"
+        }
+      ],
+      "commandPalette": [
+        {
+          "command": "lhp.sidebar.selectProject",
+          "when": "false"
+        },
+        {
+          "command": "lhp.sidebar.openSource",
+          "when": "false"
+        },
+        {
+          "command": "lhp.sidebar.openDesigner",
+          "when": "false"
         }
       ]
     },
@@ -216,6 +334,37 @@
             ]
           }
         ]
+      }
+    ],
+    "viewsContainers": {
+      "activitybar": [
+        {
+          "id": "lhp",
+          "title": "Lakehouse Plumber",
+          "icon": "media/activity.svg"
+        }
+      ]
+    },
+    "views": {
+      "lhp": [
+        {
+          "id": "lhp.projects",
+          "name": "Projects",
+          "icon": "media/activity.svg",
+          "contextualTitle": "LHP"
+        }
+      ]
+    },
+    "viewsWelcome": [
+      {
+        "view": "lhp.projects",
+        "contents": "Open a folder containing lhp.yaml, or create a new LHP project.\n[Open Folder](command:vscode.openFolder)\n[Create Project](command:lhp.createProject)",
+        "when": "isWorkspaceTrusted"
+      },
+      {
+        "view": "lhp.projects",
+        "contents": "Trust this workspace to load and edit LHP projects.\n[Manage Workspace Trust](command:workbench.trust.manage)",
+        "when": "!isWorkspaceTrusted"
       }
     ]
   },

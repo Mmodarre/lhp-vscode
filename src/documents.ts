@@ -70,11 +70,12 @@ export async function openSource(
   root: string,
   source: SourceRef,
   preserveFocus = true,
+  viewColumn: vscode.ViewColumn = vscode.ViewColumn.Beside,
 ): Promise<vscode.TextEditor> {
   const uri = vscode.Uri.file(await containedPath(root, source.path));
   const document = await vscode.workspace.openTextDocument(uri);
   const editor = await vscode.window.showTextDocument(document, {
-    viewColumn: vscode.ViewColumn.Beside,
+    viewColumn,
     preserveFocus,
     preview: true,
   });

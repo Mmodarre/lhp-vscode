@@ -246,6 +246,14 @@ export interface InstanceRequest {
   targetPath: string;
   parameters: JsonObject;
 }
+/** A one-shot navigation intent bound to the same project and graph revision. */
+export interface DesignerSelection {
+  projectId: string;
+  revision: number;
+  pipeline?: string;
+  flowgroupId?: string;
+  actionId?: string;
+}
 export type HostMessage =
   | {
       type: 'bootstrap';
@@ -253,7 +261,9 @@ export type HostMessage =
       projects: ProjectSummary[];
       snapshot?: ProjectSnapshot;
       trusted: boolean;
+      selection?: DesignerSelection;
     }
+  | { type: 'select'; selection: DesignerSelection }
   | { type: 'snapshot'; snapshot: ProjectSnapshot }
   | { type: 'result'; requestId: string; success: boolean; message?: string }
   | { type: 'error'; requestId?: string; code: string; message: string; recoverable: boolean }
