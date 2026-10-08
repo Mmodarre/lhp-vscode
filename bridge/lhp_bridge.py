@@ -28,6 +28,8 @@ OPERATIONS = {
     "generate",
     "init",
     "scaffold",
+    "inspect",
+    "data",
 }
 REQUIRED_APIS = (
     "inspect_editor_project",
@@ -38,6 +40,8 @@ REQUIRED_APIS = (
     "EditorDocumentOverlay",
     "scaffold_editor_instance",
     "scaffold_editor_bronze",
+    "preview_template",
+    "preview_configuration",
 )
 
 
@@ -183,6 +187,21 @@ def dispatch(request: dict[str, Any], emit: Any) -> Any:
         )
     if operation == "catalog":
         return api.to_dict(api.editor_catalog(root))
+    if operation == "inspect":
+        from lhp_inspection import inspect_resource
+
+        return inspect_resource(api, root, env, options, configuration)
+    if operation == "data":
+        from lhp_inspection import dataset_index
+
+        return dataset_index(
+            api,
+            root,
+            env,
+            configuration,
+            request.get("documents") or [],
+            options.get("nestedProjectRoots") or [],
+        )
     if operation == "validate":
         return consume(
             api.validate_editor_project(
@@ -209,7 +228,7 @@ def dispatch(request: dict[str, Any], emit: Any) -> Any:
                 root,
                 bundle=bool(options.get("bundle", True)),
                 project_name=options.get("name"),
-                sample_mode=False,
+                sample_mode=options.get("sampleMode", False) is True,
                 initialize_git=False,
             )
         )
@@ -250,7 +269,7 @@ def dispatch(request: dict[str, Any], emit: Any) -> Any:
             else None,
             no_cache=True,
         )
-        return consume(
+        response = consume(
             facade.generate_pipelines(
                 env=env,
                 output_dir=root / "generated" / env,
@@ -263,6 +282,26 @@ def dispatch(request: dict[str, Any], emit: Any) -> Any:
             api,
             emit,
         )
+        # Authoring links are valid only for source-mode flowgroup files. Use
+        # the public configuration resolver; unknown/wheel modes get no link.
+        modes = {}
+        for pipeline in response.get("pipeline_responses", {}):
+            try:
+                modes[pipeline] = (
+                    api.preview_configuration(
+                        root,
+                        path=configuration,
+                        kind="pipeline",
+                        env=env,
+                        target=pipeline,
+                    )["values"]["packaging"]
+                    if configuration
+                    else "source"
+                )
+            except Exception:
+                modes[pipeline] = "unknown"
+        response["editor_packaging"] = modes
+        return response
     raise RequestError("OPERATION", "Unsupported operation.")
 
 
@@ -286,7 +325,14 @@ def project_snapshot(view: Any, api: Any) -> dict[str, Any]:
     )
     data = {
         key: api.to_dict(getattr(view, key))
-        for key in ("environment", "environments", "catalog", "diagnostics", "stale")
+        for key in (
+            "environment",
+            "environments",
+            "catalog",
+            "diagnostics",
+            "stale",
+            "project",
+        )
     }
     data["flowgroups"] = [
         {key: api.to_dict(getattr(flowgroup, key)) for key in fields}
@@ -295,7 +341,7 @@ def project_snapshot(view: Any, api: Any) -> dict[str, Any]:
     dependencies = view.dependencies
     data["dependencies"] = {}
     if dependencies is not None:
-        for kind in ("action_graph", "flowgroup_graph"):
+        for kind in ("action_graph", "flowgroup_graph", "pipeline_graph"):
             graph = api.to_dict(getattr(dependencies, kind))
             if graph:
                 data["dependencies"][kind] = {

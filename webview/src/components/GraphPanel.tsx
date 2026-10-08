@@ -1,4 +1,4 @@
-import { useEffect, useMemo } from 'react';
+import { useEffect, useMemo, useRef, type RefObject } from 'react';
 import {
   Background,
   Controls,
@@ -6,6 +6,7 @@ import {
   MarkerType,
   Position,
   ReactFlow,
+  useNodesInitialized,
   useReactFlow,
   type Edge,
   type Node,
@@ -61,6 +62,35 @@ function FocusLargeGraphSelection({ position }: { position?: { x: number; y: num
   return null;
 }
 
+function FitMeasuredGraph({
+  container,
+  graphKey,
+}: {
+  container: RefObject<HTMLDivElement | null>;
+  graphKey: string;
+}) {
+  const nodesInitialized = useNodesInitialized();
+  const { fitView } = useReactFlow();
+  useEffect(() => {
+    if (!nodesInitialized || !container.current) return;
+    let frame = 0;
+    const fit = () => {
+      cancelAnimationFrame(frame);
+      frame = requestAnimationFrame(() => {
+        void fitView({ padding: 0.18, maxZoom: 1, duration: 0 });
+      });
+    };
+    fit();
+    const observer = new ResizeObserver(fit);
+    observer.observe(container.current);
+    return () => {
+      observer.disconnect();
+      cancelAnimationFrame(frame);
+    };
+  }, [container, fitView, graphKey, nodesInitialized]);
+  return null;
+}
+
 export interface GraphPanelProps {
   graph: GraphModel;
   selectedId?: string;
@@ -78,13 +108,23 @@ export function GraphPanel({
   emptyTitle,
   emptyDescription,
 }: GraphPanelProps) {
+  const container = useRef<HTMLDivElement>(null);
   const positions = useMemo(() => layoutGraph(graph.items, graph.edges), [graph]);
+  const graphKey = useMemo(
+    () =>
+      graph.items.length > 250
+        ? ''
+        : graph.items
+            .map((item) => `${item.id}:${positions[item.id]?.x},${positions[item.id]?.y}`)
+            .join('\u0000'),
+    [graph.items, positions],
+  );
   const nodes = useMemo<Node<CardData>[]>(
     () =>
       graph.items.map((item) => ({
         id: item.id,
         type: 'card',
-        className: `lhp-node${item.readonly ? ' readonly' : ''}`,
+        className: `lhp-node${item.readonly ? ' readonly' : ''} ${item.kicker.toLowerCase().split(/\W+/)[0] ?? 'item'}`,
         position: positions[item.id] ?? { x: 0, y: 0 },
         selected: item.id === selectedId,
         data: { ...item, activate: onSelect },
@@ -99,7 +139,7 @@ export function GraphPanel({
         source: edge.source,
         target: edge.target,
         label: edge.dataset || undefined,
-        markerEnd: { type: MarkerType.ArrowClosed },
+        markerEnd: { type: MarkerType.ArrowClosed, color: 'var(--lhp-graph-edge)' },
       })),
     [graph.edges],
   );
@@ -113,13 +153,14 @@ export function GraphPanel({
     );
   }
   return (
-    <div className="graph-wrap" aria-label="Dependency graph">
+    <div className="graph-wrap" aria-label="Dependency graph" ref={container}>
       <ReactFlow
         nodes={nodes}
         edges={edges}
         onlyRenderVisibleElements={largeGraph}
         nodeTypes={nodeTypes}
         fitView={!largeGraph}
+        fitViewOptions={{ padding: 0.18, maxZoom: 1 }}
         defaultViewport={{ x: 0, y: 0, zoom: 0.85 }}
         minZoom={0.25}
         maxZoom={1.5}
@@ -131,7 +172,8 @@ export function GraphPanel({
         {largeGraph && (
           <FocusLargeGraphSelection position={selectedId ? positions[selectedId] : undefined} />
         )}
-        <Background gap={18} size={1} color="var(--vscode-panel-border, #555)" />
+        {!largeGraph && <FitMeasuredGraph container={container} graphKey={graphKey} />}
+        <Background gap={20} size={1} color="var(--lhp-graph-grid)" />
         <Controls showInteractive={false} />
       </ReactFlow>
       <div className="graph-hint">

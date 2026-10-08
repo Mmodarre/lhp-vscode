@@ -9,6 +9,8 @@ import { generateSavedProject } from '../../src/projectOperations';
 import { snapshotDocuments } from '../../src/documents';
 import type { ActionMutation, ProjectSnapshot, WebviewRequest } from '../../src/shared/protocol';
 import { runSidebarTests } from './sidebar';
+import { runLanguageTests } from './language';
+import { runResourceGenerationTests, runResourceTests } from './resources';
 
 let nextRequestId = 0;
 const requestId = (): string => `extension-test-${++nextRequestId}`;
@@ -71,6 +73,9 @@ export async function run(): Promise<void> {
   const second = current(api).flowgroups.find((flowgroup) => flowgroup.name === 'document_second');
   assert.ok(second, 'second flowgroup discovered from one multi-document YAML file');
   assert.equal(second.source.documentIndex, 1);
+  // Sidebar tests intentionally reveal the same document in another group.
+  // Isolate this source-navigation assertion from those earlier editor tabs.
+  await vscode.commands.executeCommand('workbench.action.closeAllEditors');
   await api.controller.receive({
     type: 'openSource',
     requestId: requestId(),
@@ -207,6 +212,7 @@ export async function run(): Promise<void> {
     resources.some(([filename]) => filename.endsWith('.yml')),
     'bundle resources were generated',
   );
+  await runResourceGenerationTests(api);
 
   // The new-project guide writes a real native YAML config and never replaces one.
   const guidedRoot = await mkdtemp(path.join(tmpdir(), 'lhp-guided-config-'));
@@ -310,4 +316,6 @@ export async function run(): Promise<void> {
     await api.controller.refresh();
     assert.equal(current(api).refreshState, 'ready');
   }
+  await runResourceTests(api);
+  await runLanguageTests(api);
 }

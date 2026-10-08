@@ -7,6 +7,7 @@ import type {
   SourceRef,
 } from '../../../src/shared/protocol';
 import { Fields } from './Fields';
+import { sameSourceRef } from '../model';
 
 function getDefinitionName(detail: FlowgroupDetail): string | undefined {
   const name = detail.raw.use_template ?? detail.raw.use_blueprint;
@@ -101,7 +102,11 @@ export function FlowgroupInspector({
       </p>
       <div className="inspector-actions">
         <button className="button secondary small" onClick={() => onOpen(detail.source)}>
-          Open flowgroup YAML beside graph
+          {detail.origin.kind === 'template' || detail.origin.kind === 'blueprint'
+            ? 'Open instance YAML beside graph'
+            : detail.origin.kind === 'generated'
+              ? 'Open project configuration beside graph'
+              : 'Open flowgroup YAML beside graph'}
         </button>
         <button className="button quiet small" onClick={onShowActions}>
           Show actions
@@ -139,17 +144,16 @@ export function FlowgroupInspector({
                 This flowgroup is generated from project monitoring configuration. Edit its settings
                 in native YAML.
               </p>
-              <button className="link-button" onClick={() => onOpen(detail.source)}>
-                Open project configuration
-              </button>
             </>
           )}
           {detail.origin.description && <p className="field-help">{detail.origin.description}</p>}
-          {detail.origin.instance && (
-            <button className="link-button" onClick={() => onOpen(detail.origin.instance!)}>
-              Open instance YAML
-            </button>
-          )}
+          {(detail.origin.kind === 'template' || detail.origin.kind === 'blueprint') &&
+            detail.origin.instance &&
+            !sameSourceRef(detail.source, detail.origin.instance) && (
+              <button className="link-button" onClick={() => onOpen(detail.origin.instance!)}>
+                Open instance YAML
+              </button>
+            )}
           {detail.origin.definition && (
             <button className="link-button" onClick={() => onOpen(detail.origin.definition!)}>
               Open {detail.origin.kind} definition

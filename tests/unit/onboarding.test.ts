@@ -53,13 +53,32 @@ describe('safe LHP onboarding boundaries', () => {
       operation: 'init',
       interpreter: '/chosen/python',
       projectRoot: target,
-      options: { name: 'project', bundle: true },
+      options: { name: 'project', bundle: true, sampleMode: false },
     });
     await writeFile(path.join(target, '.hidden-user-file'), 'keep');
     await expect(
       bootstrapProject(target, 'project', false, '/chosen/python', bridge),
     ).rejects.toThrow('not empty');
     expect(call).toHaveBeenCalledTimes(1);
+  });
+
+  it('forwards an explicitly chosen TPC-H sample mode to the public bootstrap adapter', async () => {
+    const target = path.join(parent, 'sample');
+    const call = vi.fn(async () => ({ success: true }));
+    await bootstrapProject(
+      target,
+      'sample',
+      false,
+      '/chosen/python',
+      { call } as unknown as Pick<BridgeClient, 'call'>,
+      true,
+    );
+    expect(call).toHaveBeenCalledWith({
+      operation: 'init',
+      interpreter: '/chosen/python',
+      projectRoot: target,
+      options: { name: 'sample', bundle: false, sampleMode: true },
+    });
   });
 
   it('rejects a symlink or junction target even when its destination is empty', async () => {

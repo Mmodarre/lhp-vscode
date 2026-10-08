@@ -1,10 +1,12 @@
 import { describe, expect, it } from 'vitest';
 import {
   actionGraph,
+  datasetGraph,
   documentVersions,
   fieldValue,
   layoutGraph,
   pipelineGraph,
+  projectGraph,
   setFieldValue,
 } from './model';
 import { demoSnapshot } from './demoFixture';
@@ -19,6 +21,68 @@ describe('webview graph models', () => {
       ['customers', 'inventory', 'inventory_lookup'],
     ]);
     expect(pipelineGraph(snapshot, 'silver_curate').edges).toEqual([]);
+  });
+
+  it('draws the project map only from canonical pipeline edges', () => {
+    const snapshot = {
+      ...demoSnapshot(),
+      pipelineEdges: [
+        {
+          id: 'real',
+          source: 'bronze_load',
+          target: 'silver_curate',
+          dataset: 'orders',
+          editable: false,
+        },
+        {
+          id: 'unknown',
+          source: 'missing',
+          target: 'silver_curate',
+          dataset: 'unknown',
+          editable: false,
+        },
+      ],
+    };
+    const graph = projectGraph(snapshot);
+    expect(graph.items.map((item) => item.id)).toEqual(['bronze_load', 'silver_curate']);
+    expect(graph.edges.map((edge) => edge.id)).toEqual(['real']);
+    expect(projectGraph({ ...snapshot, pipelineEdges: undefined }).edges).toEqual([]);
+  });
+
+  it('shows declared dataset identities and only matching lineage edges', () => {
+    const graph = datasetGraph({
+      projectId: 'demo',
+      revision: 7,
+      environment: 'dev',
+      stale: false,
+      warnings: [],
+      datasets: [
+        {
+          id: 'input',
+          name: 'landing.orders',
+          kind: 'external',
+          producers: [],
+          consumers: [],
+          upstream: [],
+          downstream: ['output'],
+        },
+        {
+          id: 'output',
+          name: 'bronze.orders',
+          kind: 'table',
+          producers: [{ label: 'write_orders' }],
+          consumers: [],
+          upstream: ['input'],
+          downstream: [],
+        },
+      ],
+      edges: [
+        { id: 'declared', source: 'input', target: 'output', dataset: 'orders', editable: false },
+        { id: 'unknown', source: 'missing', target: 'output', dataset: '', editable: false },
+      ],
+    });
+    expect(graph.items[0]).toMatchObject({ kicker: 'External input', readonly: true });
+    expect(graph.edges.map((edge) => edge.id)).toEqual(['declared']);
   });
 
   it('uses actual action dependencies, not sequence-adjacent invented edges', () => {

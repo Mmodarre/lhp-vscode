@@ -2,7 +2,7 @@
   "name": "lhp-vscode",
   "displayName": "Lakehouse Plumber",
   "description": "Native YAML, guided graphs and forms for Lakehouse Plumber pipelines.",
-  "version": "0.1.2",
+  "version": "0.2.0",
   "publisher": "Mmodarre",
   "license": "Apache-2.0",
   "repository": {
@@ -47,7 +47,7 @@
   "capabilities": {
     "untrustedWorkspaces": {
       "supported": "limited",
-      "description": "Project code, Python processes, edits, previews and generation require workspace trust."
+      "description": "Contained project source browsing works without trust; Python execution, structured edits, inspections, previews and generation require workspace trust."
     },
     "virtualWorkspaces": {
       "supported": false,
@@ -130,22 +130,120 @@
       {
         "command": "lhp.sidebar.selectProject",
         "title": "Select Project",
-        "category": "LHP",
-        "enablement": "isWorkspaceTrusted"
+        "category": "LHP"
       },
       {
         "command": "lhp.sidebar.openSource",
         "title": "Open Source",
         "category": "LHP",
-        "icon": "$(go-to-file)",
-        "enablement": "isWorkspaceTrusted"
+        "icon": "$(go-to-file)"
       },
       {
         "command": "lhp.sidebar.openDesigner",
         "title": "Open in Designer",
         "category": "LHP",
-        "icon": "$(type-hierarchy)",
-        "enablement": "isWorkspaceTrusted"
+        "icon": "$(type-hierarchy)"
+      },
+      {
+        "command": "lhp.sidebar.activate",
+        "title": "Open LHP Item",
+        "category": "LHP"
+      },
+      {
+        "command": "lhp.sidebar.openResource",
+        "title": "Open Resource",
+        "category": "LHP"
+      },
+      {
+        "command": "lhp.sidebar.inspect",
+        "title": "Inspect Resolved Resource",
+        "category": "LHP"
+      },
+      {
+        "command": "lhp.sidebar.findConsumers",
+        "title": "Find Resource Consumers",
+        "category": "LHP"
+      },
+      {
+        "command": "lhp.sidebar.revealResource",
+        "title": "Reveal Resource in Explorer",
+        "category": "LHP"
+      },
+      {
+        "command": "lhp.sidebar.compareGenerated",
+        "title": "Compare with Preview",
+        "category": "LHP"
+      },
+      {
+        "command": "lhp.sidebar.findAuthoringSource",
+        "title": "Go to Authoring Source",
+        "category": "LHP"
+      },
+      {
+        "command": "lhp.sidebar.findResource",
+        "title": "Find LHP Resource",
+        "category": "LHP"
+      },
+      {
+        "command": "lhp.sidebar.help",
+        "title": "LHP Help",
+        "category": "LHP"
+      },
+      {
+        "command": "lhp.sidebar.createPipeline",
+        "title": "Add to LHP Pipeline",
+        "category": "LHP",
+        "icon": "$(add)",
+        "enablement": "isWorkspaceTrusted && lhp.hasProject && !lhp.operationRunning"
+      },
+      {
+        "command": "lhp.sidebar.createBronze",
+        "title": "Create Bronze Flowgroup",
+        "category": "LHP",
+        "enablement": "isWorkspaceTrusted && lhp.hasProject && !lhp.operationRunning"
+      },
+      {
+        "command": "lhp.sidebar.createFlowgroup",
+        "title": "Create Flowgroup",
+        "category": "LHP",
+        "enablement": "isWorkspaceTrusted && lhp.hasProject && !lhp.operationRunning"
+      },
+      {
+        "command": "lhp.sidebar.createTemplateInstance",
+        "title": "Create Template Instance",
+        "category": "LHP",
+        "enablement": "isWorkspaceTrusted && lhp.hasProject && !lhp.operationRunning"
+      },
+      {
+        "command": "lhp.sidebar.createBlueprintInstance",
+        "title": "Create Blueprint Instance",
+        "category": "LHP",
+        "enablement": "isWorkspaceTrusted && lhp.hasProject && !lhp.operationRunning"
+      },
+      {
+        "command": "lhp.sidebar.selectPipelineConfig",
+        "title": "Select Pipeline Configuration",
+        "category": "LHP"
+      },
+      {
+        "command": "lhp.sidebar.refreshResources",
+        "title": "Refresh LHP Files",
+        "category": "LHP"
+      },
+      {
+        "command": "lhp.sidebar.loadData",
+        "title": "Load Declared Lineage",
+        "category": "LHP"
+      },
+      {
+        "command": "lhp.sidebar.openEnvironmentSource",
+        "title": "Open Environment Source",
+        "category": "LHP"
+      },
+      {
+        "command": "lhp.sidebar.revealProject",
+        "title": "Reveal Project in Explorer",
+        "category": "LHP"
       }
     ],
     "menus": {
@@ -165,79 +263,230 @@
       ],
       "view/title": [
         {
+          "command": "lhp.selectProject",
+          "when": "view == lhp.configuration",
+          "group": "navigation@1"
+        },
+        {
+          "command": "lhp.sidebar.help",
+          "when": "view == lhp.configuration",
+          "group": "navigation@2"
+        },
+        {
           "command": "lhp.openDesigner",
-          "when": "view == lhp.projects",
+          "when": "view == lhp.pipelines",
+          "group": "3_navigation@1"
+        },
+        {
+          "command": "lhp.sidebar.createPipeline",
+          "when": "view == lhp.pipelines && isWorkspaceTrusted && lhp.hasProject && !lhp.operationRunning",
           "group": "navigation@1"
         },
         {
           "command": "lhp.refresh",
-          "when": "view == lhp.projects && isWorkspaceTrusted && lhp.hasProject",
+          "when": "view == lhp.pipelines && isWorkspaceTrusted && lhp.hasProject",
           "group": "navigation@2"
         },
         {
           "command": "lhp.cancel",
-          "when": "view == lhp.projects && lhp.operationRunning",
+          "when": "view == lhp.pipelines && lhp.operationRunning",
           "group": "navigation@3"
         },
         {
           "command": "lhp.validate",
-          "when": "view == lhp.projects",
+          "when": "view == lhp.pipelines && isWorkspaceTrusted && lhp.hasProject",
           "group": "1_operations@0"
         },
         {
           "command": "lhp.preview",
-          "when": "view == lhp.projects",
+          "when": "view == lhp.pipelines && isWorkspaceTrusted && lhp.hasProject",
           "group": "1_operations@1"
         },
         {
           "command": "lhp.generate",
-          "when": "view == lhp.projects",
+          "when": "view == lhp.pipelines && isWorkspaceTrusted && lhp.hasProject",
           "group": "1_operations@2"
         },
         {
-          "command": "lhp.selectEnvironment",
-          "when": "view == lhp.projects",
-          "group": "2_project@3"
+          "command": "lhp.sidebar.createBronze",
+          "when": "view == lhp.pipelines && isWorkspaceTrusted && lhp.hasProject",
+          "group": "2_create@0"
         },
         {
-          "command": "lhp.selectInterpreter",
-          "when": "view == lhp.projects",
-          "group": "2_project@4"
+          "command": "lhp.sidebar.createFlowgroup",
+          "when": "view == lhp.pipelines && isWorkspaceTrusted && lhp.hasProject",
+          "group": "2_create@1"
         },
         {
-          "command": "lhp.setupEnvironment",
-          "when": "view == lhp.projects",
-          "group": "2_project@5"
+          "command": "lhp.sidebar.findResource",
+          "when": "view == lhp.resources",
+          "group": "navigation@1"
         },
         {
-          "command": "lhp.createProject",
-          "when": "view == lhp.projects",
-          "group": "2_project@6"
+          "command": "lhp.sidebar.refreshResources",
+          "when": "view == lhp.resources",
+          "group": "navigation@2"
+        },
+        {
+          "command": "lhp.sidebar.help",
+          "when": "view == lhp.resources",
+          "group": "navigation@3"
+        },
+        {
+          "command": "lhp.sidebar.loadData",
+          "when": "view == lhp.data && isWorkspaceTrusted && lhp.hasProject && lhp.runtimeCompatible",
+          "group": "navigation@1"
+        },
+        {
+          "command": "lhp.sidebar.refreshResources",
+          "when": "view == lhp.generated",
+          "group": "navigation@1"
         },
         {
           "command": "lhp.openDatabricks",
-          "when": "view == lhp.projects",
-          "group": "2_project@7"
+          "when": "view == lhp.generated && isWorkspaceTrusted && lhp.hasProject",
+          "group": "1_operations@1"
         }
       ],
       "view/item/context": [
         {
           "command": "lhp.sidebar.openDesigner",
-          "when": "view == lhp.projects && viewItem != lhp.file",
+          "when": "view == lhp.pipelines && viewItem =~ /^lhp\\.(pipeline|flowgroup)$/",
           "group": "inline@1"
         },
         {
           "command": "lhp.sidebar.openSource",
-          "when": "view == lhp.projects && viewItem =~ /^lhp\\.(project|flowgroup|action|file)$/",
+          "when": "view == lhp.pipelines && viewItem == lhp.action",
+          "group": "inline@1"
+        },
+        {
+          "command": "lhp.sidebar.openSource",
+          "when": "view == lhp.pipelines && viewItem == lhp.flowgroup",
           "group": "navigation@1"
         },
         {
-          "command": "lhp.sidebar.selectProject",
-          "when": "view == lhp.projects && viewItem == lhp.project.inactive",
+          "command": "lhp.sidebar.openResource",
+          "when": "viewItem =~ /^lhp\\.resource/",
+          "group": "inline@1"
+        },
+        {
+          "command": "lhp.sidebar.inspect",
+          "when": "viewItem =~ /^lhp\\.resource\\.(template|preset|configuration\\.(pipeline|job|environment))$/ && isWorkspaceTrusted",
+          "group": "navigation@1"
+        },
+        {
+          "command": "lhp.sidebar.findConsumers",
+          "when": "viewItem =~ /^lhp\\.resource/",
+          "group": "navigation@2"
+        },
+        {
+          "command": "lhp.sidebar.revealResource",
+          "when": "viewItem =~ /^lhp\\.resource/",
+          "group": "navigation@3"
+        },
+        {
+          "command": "lhp.sidebar.createTemplateInstance",
+          "when": "viewItem == lhp.resource.template && isWorkspaceTrusted",
+          "group": "2_create@1"
+        },
+        {
+          "command": "lhp.sidebar.createBlueprintInstance",
+          "when": "viewItem == lhp.resource.blueprint && isWorkspaceTrusted",
+          "group": "2_create@2"
+        },
+        {
+          "command": "lhp.sidebar.compareGenerated",
+          "when": "viewItem =~ /^lhp\\.resource\\.generated\\.compare(?:\\.authored)?$/ && isWorkspaceTrusted",
+          "group": "navigation@4"
+        },
+        {
+          "command": "lhp.sidebar.findAuthoringSource",
+          "when": "viewItem =~ /^lhp\\.resource\\.generated(?:\\.compare)?\\.authored$/",
+          "group": "navigation@2"
+        },
+        {
+          "command": "lhp.sidebar.openDesigner",
+          "when": "viewItem == lhp.action && isWorkspaceTrusted",
+          "group": "navigation@1"
+        },
+        {
+          "command": "lhp.sidebar.openSource",
+          "when": "viewItem =~ /^lhp\\.config\\.(project|pipelineConfig\\.selected)/",
+          "group": "inline@1"
+        },
+        {
+          "command": "lhp.sidebar.revealProject",
+          "when": "viewItem == lhp.config.project",
+          "group": "navigation@2"
+        },
+        {
+          "command": "lhp.selectProject",
+          "when": "viewItem == lhp.config.project",
+          "group": "navigation@1"
+        },
+        {
+          "command": "lhp.selectEnvironment",
+          "when": "viewItem == lhp.config.environment && isWorkspaceTrusted",
+          "group": "navigation@1"
+        },
+        {
+          "command": "lhp.sidebar.openEnvironmentSource",
+          "when": "viewItem == lhp.config.environment",
+          "group": "navigation@2"
+        },
+        {
+          "command": "lhp.selectInterpreter",
+          "when": "viewItem == lhp.config.runtime && isWorkspaceTrusted",
+          "group": "navigation@1"
+        },
+        {
+          "command": "lhp.sidebar.selectPipelineConfig",
+          "when": "viewItem =~ /^lhp\\.config\\.pipelineConfig/ && isWorkspaceTrusted",
+          "group": "navigation@1"
+        },
+        {
+          "command": "lhp.sidebar.inspect",
+          "when": "viewItem == lhp.config.pipelineConfig.selected.catalogued && isWorkspaceTrusted",
           "group": "navigation@2"
         }
       ],
       "commandPalette": [
+        {
+          "command": "lhp.sidebar.activate",
+          "when": "false"
+        },
+        {
+          "command": "lhp.sidebar.openResource",
+          "when": "false"
+        },
+        {
+          "command": "lhp.sidebar.inspect",
+          "when": "false"
+        },
+        {
+          "command": "lhp.sidebar.findConsumers",
+          "when": "false"
+        },
+        {
+          "command": "lhp.sidebar.revealResource",
+          "when": "false"
+        },
+        {
+          "command": "lhp.sidebar.compareGenerated",
+          "when": "false"
+        },
+        {
+          "command": "lhp.sidebar.findAuthoringSource",
+          "when": "false"
+        },
+        {
+          "command": "lhp.sidebar.createTemplateInstance",
+          "when": "false"
+        },
+        {
+          "command": "lhp.sidebar.createBlueprintInstance",
+          "when": "false"
+        },
         {
           "command": "lhp.sidebar.selectProject",
           "when": "false"
@@ -248,6 +497,14 @@
         },
         {
           "command": "lhp.sidebar.openDesigner",
+          "when": "false"
+        },
+        {
+          "command": "lhp.sidebar.openEnvironmentSource",
+          "when": "false"
+        },
+        {
+          "command": "lhp.sidebar.revealProject",
           "when": "false"
         }
       ]
@@ -297,24 +554,13 @@
     "walkthroughs": [
       {
         "id": "lhp.getStarted",
-        "title": "Build a pipeline with LHP",
-        "description": "Choose Python, create or open a project, then edit YAML with guided graphs and forms.",
+        "title": "Start with Lakehouse Plumber",
+        "description": "Choose a project, connect a compatible Python environment and author your first flowgroup.",
         "steps": [
-          {
-            "id": "runtime",
-            "title": "Select a compatible Python environment",
-            "description": "[Select Python](command:lhp.selectInterpreter) or [create an environment](command:lhp.setupEnvironment). LHP 0.9.3 is currently an integration build.",
-            "media": {
-              "markdown": "media/welcome.md"
-            },
-            "completionEvents": [
-              "onCommand:lhp.selectInterpreter"
-            ]
-          },
           {
             "id": "project",
             "title": "Open or create an LHP project",
-            "description": "[Create project](command:lhp.createProject), or open a folder containing lhp.yaml.",
+            "description": "Open a folder with lhp.yaml or [create a project](command:lhp.createProject).",
             "media": {
               "markdown": "media/welcome.md"
             },
@@ -323,14 +569,36 @@
             ]
           },
           {
-            "id": "design",
-            "title": "Author in YAML and the designer",
-            "description": "[Open the designer](command:lhp.openDesigner). Create bronze ingestion, inspect actions and open their source files.",
+            "id": "runtime",
+            "title": "Select compatible Python",
+            "description": "[Select Python](command:lhp.selectInterpreter) or [set up an environment](command:lhp.setupEnvironment).",
             "media": {
               "markdown": "media/welcome.md"
             },
             "completionEvents": [
-              "onCommand:lhp.openDesigner"
+              "onCommand:lhp.selectInterpreter"
+            ]
+          },
+          {
+            "id": "source",
+            "title": "Create or open a flowgroup",
+            "description": "Browse source under Pipelines, or [create bronze ingestion](command:lhp.sidebar.createBronze).",
+            "media": {
+              "markdown": "media/welcome.md"
+            },
+            "completionEvents": [
+              "onCommand:lhp.sidebar.createBronze"
+            ]
+          },
+          {
+            "id": "validate",
+            "title": "Validate and preview",
+            "description": "[Validate](command:lhp.validate), inspect Problems and preview generated source before full-project generation.",
+            "media": {
+              "markdown": "media/welcome.md"
+            },
+            "completionEvents": [
+              "onCommand:lhp.validate"
             ]
           }
         ]
@@ -348,23 +616,59 @@
     "views": {
       "lhp": [
         {
-          "id": "lhp.projects",
-          "name": "Projects",
-          "icon": "media/activity.svg",
-          "contextualTitle": "LHP"
+          "id": "lhp.configuration",
+          "name": "Configuration",
+          "contextualTitle": "LHP Configuration",
+          "initialSize": 1.2
+        },
+        {
+          "id": "lhp.pipelines",
+          "name": "Pipelines",
+          "contextualTitle": "LHP Pipelines",
+          "initialSize": 0.75
+        },
+        {
+          "id": "lhp.resources",
+          "name": "Resources",
+          "contextualTitle": "LHP Resources",
+          "initialSize": 1.6
+        },
+        {
+          "id": "lhp.data",
+          "name": "Data",
+          "contextualTitle": "LHP Data",
+          "visibility": "collapsed",
+          "initialSize": 1
+        },
+        {
+          "id": "lhp.generated",
+          "name": "Generated Output",
+          "contextualTitle": "LHP Generated Output",
+          "visibility": "collapsed",
+          "initialSize": 1
         }
       ]
     },
     "viewsWelcome": [
       {
-        "view": "lhp.projects",
-        "contents": "Open a folder containing lhp.yaml, or create a new LHP project.\n[Open Folder](command:vscode.openFolder)\n[Create Project](command:lhp.createProject)",
-        "when": "isWorkspaceTrusted"
+        "view": "lhp.configuration",
+        "contents": "Open a folder containing lhp.yaml, or create an LHP project.\n[Open Folder](command:vscode.openFolder)\n[Create Project](command:lhp.createProject)\n[Get Started](command:lhp.sidebar.help)"
       },
       {
-        "view": "lhp.projects",
-        "contents": "Trust this workspace to load and edit LHP projects.\n[Manage Workspace Trust](command:workbench.trust.manage)",
-        "when": "!isWorkspaceTrusted"
+        "view": "lhp.pipelines",
+        "contents": "Open a folder containing lhp.yaml to browse pipelines and their source.\n[Open Folder](command:vscode.openFolder)"
+      },
+      {
+        "view": "lhp.resources",
+        "contents": "Open an LHP project to browse templates, blueprints, presets and source files.\n[Open Folder](command:vscode.openFolder)\n[Create Project](command:lhp.createProject)"
+      },
+      {
+        "view": "lhp.data",
+        "contents": "Select an LHP project to load declared lineage."
+      },
+      {
+        "view": "lhp.generated",
+        "contents": "Persisted generated files appear after full-project generation."
       }
     ]
   },

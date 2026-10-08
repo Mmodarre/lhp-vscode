@@ -111,6 +111,13 @@ export function parseWebviewRequest(value: unknown): WebviewRequest {
           nonempty(value.values && (value.values as Record<string, unknown>)[k]),
         );
       break;
+    case 'createFlowgroup':
+      valid =
+        isRecord(value.values) &&
+        ['name', 'pipeline', 'targetPath'].every((key) =>
+          nonempty((value.values as Record<string, unknown>)[key]),
+        );
+      break;
     case 'createInstance':
       valid =
         isRecord(value.values) &&

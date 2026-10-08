@@ -1,3 +1,26 @@
+# Active implementation: approved 0.2.0 redesign
+
+User approval received on 8 October 2026 for the final v3 design and its full phased scope. [Approved design](docs/sidebar-redesign.md) is the feature/interaction source of truth. Existing 0.1.x delivery evidence below remains historical. Runtime version target is 0.2.0; delivery is an audited VSIX first, without Marketplace publication or merging.
+
+| Phase | Concrete deliverable | Owner | Acceptance |
+|---|---|---|---|
+| A: contracts and browse | Independent bounded physical inventory, current project context, public catalogue bootstrap, exact source identities | Astra xhigh | Native browsing works without Python/trust; nested projects isolated; no symlink escape or silent truncation; catalog available before full graph |
+| B: native workspace | Configuration/Pipelines/Resources/Data/Generated Output, remembered shallow trees, search, contextual actions | Sol native xhigh | Five native views match approved primary clicks; stale/forged commands rejected; all seven resource groups visible; disk-only Output |
+| C: semantic inspections | Pipeline graph, dataset index, template draft preview, saved pipeline/job config inspection, preset and substitution inspection, preview comparison | Astra xhigh | Public API only; bounded responses and cancellation; exact source/scopes; no project writes in inspections; preview expiry and saved-only labels accurate |
+| D: designer and onboarding | Exact LHP identity/palette, project/data graph, first-flowgroup/instance guides, conditional Get Started, TPC-H bootstrap | Sol GUI xhigh | Native source remains authoritative; exact assets included; accessible graph/UI; no remote run or invented data/source |
+| E: YAML assistance | Scoped content-aware schemas, CST cursor context, indexed references/tokens/files, installed-catalogue snippets, precise hover/definitions and safe fixes | Sol native xhigh | Multi-doc/quoted/list/incomplete drafts/anchors/comments; no Python per keystroke; schemas do not hijack unrelated YAML |
+| F: integration/delivery | Version/tooling/docs, host integration, desktop matrix and audited package | Astra implementation; root independent review | Required gates pass; accepted scope reconciled; public files contain no private paths/content; commit/push coordinated by root |
+
+Implementation checkpoint: phases A–E and cross-review corrections are implemented. Root completed independent local signoff: 82 tests without skips, nine bridge tests, fresh native VS Code integration, type/lint/format/build gates and a zero-vulnerability production audit. The public 4,017-flowgroup / 18,766-action project retains every canonical dependency and native document version; the measured native refresh was 20.119 seconds. Dark, light and high-contrast native captures match the approved design. Exact local evidence is recorded in TODO.md. Three-platform CI and the final audited 0.2.0 VSIX follow the implementation commit. No core or E2E changes were necessary.
+
+Contracts: `src/shared/projectModel.ts` defines independent resources/datasets/inspection requests; protocol owns host/webview/bridge allowlists. Native implementer owns sidebar/language modules and package contributions, GUI owns webview/media/onboarding, Astra owns other host/bridge/tooling/docs. Shared file edits and commits must be coordinated. Root reviews, does not code.
+
+Validation: focused unit/API/extension-host integration coverage per increment, then type/lint/format/build/unit/bridge/native/audit/package gates and macOS/Windows/Linux CI. Add tests for trust-free bounded browse; large lazy hierarchies; malformed files; nested roots; path/symlink rejection; schema cursor contexts; current-source navigation; inspections/preview expiry; full generation and cancellation. Do not create/edit/regenerate any E2E tests, fixtures or baselines without explicit user approval.
+
+Core dependency: retain reviewed public API pin unless a proven gap requires change. No original LHP/website edits. Any necessary core work gets an isolated worktree/new feature branch from the current verified remote release/V0.9.3 after reading its actual constitution and applicable guidance.
+
+---
+
 # LHP VS Code implementation plan
 
 Status: 0.1.2 native sidebar and command shortcuts are complete, with desktop verification passed on Windows, macOS and Linux. Delivery remains an audited VSIX and reviewable public source in the extension draft PR, with no Marketplace publication.

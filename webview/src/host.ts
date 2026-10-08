@@ -46,7 +46,23 @@ function selectionShape(value: unknown): value is DesignerSelection {
     Number.isSafeInteger(value.revision) &&
     (value.pipeline === undefined || typeof value.pipeline === 'string') &&
     (value.flowgroupId === undefined || typeof value.flowgroupId === 'string') &&
-    (value.actionId === undefined || typeof value.actionId === 'string')
+    (value.actionId === undefined || typeof value.actionId === 'string') &&
+    (value.datasetId === undefined || typeof value.datasetId === 'string') &&
+    (value.view === undefined ||
+      ['project', 'pipeline', 'flowgroup', 'dataset'].includes(String(value.view)))
+  );
+}
+
+function datasetShape(value: unknown): boolean {
+  return (
+    record(value) &&
+    typeof value.projectId === 'string' &&
+    Number.isSafeInteger(value.revision) &&
+    typeof value.environment === 'string' &&
+    Array.isArray(value.datasets) &&
+    Array.isArray(value.edges) &&
+    Array.isArray(value.warnings) &&
+    typeof value.stale === 'boolean'
   );
 }
 
@@ -58,11 +74,22 @@ export function isHostMessage(value: unknown): value is HostMessage {
         typeof value.protocolVersion === 'number' &&
         Array.isArray(value.projects) &&
         typeof value.trusted === 'boolean' &&
+        (value.logoUri === undefined || typeof value.logoUri === 'string') &&
+        (value.datasets === undefined || datasetShape(value.datasets)) &&
         (value.snapshot === undefined || snapshotShape(value.snapshot)) &&
         (value.selection === undefined || selectionShape(value.selection))
       );
     case 'select':
       return selectionShape(value.selection);
+    case 'datasets':
+      return datasetShape(value.datasets);
+    case 'guide':
+      return (
+        typeof value.projectId === 'string' &&
+        Number.isSafeInteger(value.revision) &&
+        ['bronze', 'flowgroup', 'template', 'blueprint'].includes(String(value.guide)) &&
+        (value.definition === undefined || typeof value.definition === 'string')
+      );
     case 'snapshot':
       return snapshotShape(value.snapshot);
     case 'result':

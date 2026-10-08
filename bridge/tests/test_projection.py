@@ -87,6 +87,7 @@ class ProjectionTests(unittest.TestCase):
         ]
         graph = {"nodes": nodes, "edges": edges}
         view = SimpleNamespace(
+            project={"name": "projection", "has_monitoring": True},
             environment="dev",
             environments=["dev"],
             catalog={},
@@ -96,6 +97,10 @@ class ProjectionTests(unittest.TestCase):
             dependencies=SimpleNamespace(
                 action_graph=graph,
                 flowgroup_graph=graph,
+                pipeline_graph={
+                    "nodes": [{"id": "p", "label": "p"}],
+                    "edges": [{"source": "p", "target": "q", "dataset": "table"}],
+                },
                 warnings=[],
                 external_sources=["external"],
             ),
@@ -104,6 +109,11 @@ class ProjectionTests(unittest.TestCase):
             view, SimpleNamespace(to_dict=copy.deepcopy)
         )
         self.assertEqual(projected["flowgroups"][0]["raw"], group.raw)
+        self.assertEqual(projected["project"], view.project)
+        self.assertEqual(
+            projected["dependencies"]["pipeline_graph"],
+            view.dependencies.pipeline_graph,
+        )
         self.assertEqual(projected["flowgroups"][0]["actions"], actions)
         self.assertEqual(projected["flowgroups"][0]["source"], source)
         self.assertNotIn("resolved", projected["flowgroups"][0])

@@ -1,5 +1,5 @@
 import * as vscode from 'vscode';
-import { containedPath, relativePath } from './paths';
+import { containedPath, relativePath, ignoredProjectPath } from './paths';
 import { planMutation, sourceOffset } from './yamlEdits';
 import type {
   ActionMutation,
@@ -9,13 +9,18 @@ import type {
   SourceRef,
 } from './shared/protocol';
 
-export function projectOverlays(root: string): DocumentOverlay[] {
+export function projectOverlays(root: string, excludedRoots: string[] = []): DocumentOverlay[] {
   return vscode.workspace.textDocuments
     .filter(
       (document) =>
         document.uri.scheme === 'file' &&
         /\.(?:ya?ml|sql|py|json|ddl)$/i.test(document.uri.path) &&
         document.isDirty &&
+        !ignoredProjectPath(relativePath(root, document.uri.fsPath) ?? '') &&
+        !excludedRoots.some(
+          (candidate) =>
+            !!relativePath(root, candidate) && !!relativePath(candidate, document.uri.fsPath),
+        ) &&
         !!relativePath(root, document.uri.fsPath),
     )
     .map((document) => ({
@@ -28,6 +33,7 @@ export async function snapshotDocuments(
   root: string,
   snapshot: ProjectSnapshot,
   signal?: AbortSignal,
+  excludedRoots: string[] = [],
 ): Promise<DocumentSnapshot[]> {
   const paths = new Set(
     snapshot.flowgroups
@@ -39,7 +45,7 @@ export async function snapshotDocuments(
       ])
       .filter((p): p is string => !!p),
   );
-  for (const overlay of projectOverlays(root)) paths.add(overlay.path);
+  for (const overlay of projectOverlays(root, excludedRoots)) paths.add(overlay.path);
   const filenames = [...paths];
   const result = new Array<DocumentSnapshot>(filenames.length);
   let next = 0;
@@ -94,13 +100,20 @@ export async function applyMutation(
   snapshot: ProjectSnapshot,
   mutation: ActionMutation,
   versions: Record<string, number>,
+  excludedRoots: string[] = [],
 ): Promise<vscode.Uri | undefined> {
-  const documents = await snapshotDocuments(root, snapshot);
+  const documents = await snapshotDocuments(root, snapshot, undefined, excludedRoots);
   const planned = planMutation(snapshot, mutation, documents, versions);
   const edit = new vscode.WorkspaceEdit();
   let last: vscode.Uri | undefined;
   for (const change of planned) {
     const uri = vscode.Uri.file(await containedPath(root, change.path));
+    if (
+      excludedRoots.some(
+        (candidate) => !!relativePath(root, candidate) && !!relativePath(candidate, uri.fsPath),
+      )
+    )
+      throw new Error('Select the nested LHP project before editing its source.');
     const document = await vscode.workspace.openTextDocument(uri);
     if (document.version !== change.version)
       throw new Error('The document changed. Refresh the form before applying it.');

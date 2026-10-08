@@ -377,6 +377,22 @@ export async function createProject(
     );
     return undefined;
   }
+  const content = await vscode.window.showQuickPick(
+    [
+      {
+        label: 'Blank starter project',
+        value: false,
+        detail: 'Create the LHP structure and author your first files-to-bronze flowgroup',
+      },
+      {
+        label: 'TPC-H sample project',
+        value: true,
+        detail: 'Include example pipelines and resources for learning LHP',
+      },
+    ],
+    { title: 'Choose project content' },
+  );
+  if (!content) return undefined;
   const bundle = await vscode.window.showQuickPick(
     [
       {
@@ -412,7 +428,7 @@ export async function createProject(
     bundleDefaults = { catalog: catalog.trim(), schema: schema.trim() };
   }
   try {
-    await bootstrapProject(root, projectName, bundle.value, selectedPython, bridge);
+    await bootstrapProject(root, projectName, bundle.value, selectedPython, bridge, content.value);
     try {
       await persistInterpreter(root, context, selectedPython);
     } catch {

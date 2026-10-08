@@ -5,6 +5,7 @@ import type {
   GraphEdge,
   JsonObject,
   JsonValue,
+  ProjectDatasetIndex,
   ProjectSnapshot,
   SourceRef,
 } from '../../src/shared/protocol';
@@ -20,6 +21,36 @@ export interface GraphItem {
 export interface GraphModel {
   items: GraphItem[];
   edges: GraphEdge[];
+}
+
+export function projectGraph(snapshot: ProjectSnapshot): GraphModel {
+  const names = new Set(snapshot.pipelines.map((pipeline) => pipeline.name));
+  return {
+    items: snapshot.pipelines.map((pipeline) => ({
+      id: pipeline.name,
+      name: pipeline.name,
+      kicker: 'Pipeline',
+      detail: `${pipeline.flowgroups.length} flowgroup${pipeline.flowgroups.length === 1 ? '' : 's'}`,
+      readonly: false,
+    })),
+    edges: (snapshot.pipelineEdges ?? []).filter(
+      (edge) => names.has(edge.source) && names.has(edge.target),
+    ),
+  };
+}
+
+export function datasetGraph(index: ProjectDatasetIndex): GraphModel {
+  const ids = new Set(index.datasets.map((dataset) => dataset.id));
+  return {
+    items: index.datasets.map((dataset) => ({
+      id: dataset.id,
+      name: dataset.name,
+      kicker: dataset.kind === 'external' ? 'External input' : dataset.kind,
+      detail: `${dataset.producers.length} producer${dataset.producers.length === 1 ? '' : 's'} · ${dataset.consumers.length} consumer${dataset.consumers.length === 1 ? '' : 's'}`,
+      readonly: dataset.kind === 'external',
+    })),
+    edges: index.edges.filter((edge) => ids.has(edge.source) && ids.has(edge.target)),
+  };
 }
 
 export function pipelineGraph(snapshot: ProjectSnapshot, pipeline: string): GraphModel {
@@ -81,7 +112,8 @@ export function layoutGraph(
   }
   // Cyclic nodes cannot be ranked by Kahn's algorithm. Place them in a final
   // column; the edge itself still renders and can be inspected/disconnected.
-  const lastRank = Math.max(0, ...ranks.values());
+  let lastRank = 0;
+  for (const rank of ranks.values()) lastRank = Math.max(lastRank, rank);
   for (const item of items) if (!ranks.has(item.id)) ranks.set(item.id, lastRank + 1);
   const rows = new Map<number, number>();
   return Object.fromEntries(
@@ -103,6 +135,16 @@ export function documentForSource(
   source: SourceRef,
 ): DocumentState | undefined {
   return snapshot.documents.find((doc) => doc.path === source.path);
+}
+
+/** Compare navigation targets, ignoring display labels. */
+export function sameSourceRef(left: SourceRef, right: SourceRef): boolean {
+  return (
+    left.path === right.path &&
+    (left.documentIndex ?? 0) === (right.documentIndex ?? 0) &&
+    JSON.stringify(left.yamlPath ?? null) === JSON.stringify(right.yamlPath ?? null) &&
+    JSON.stringify(left.range ?? null) === JSON.stringify(right.range ?? null)
+  );
 }
 
 export function actionById(snapshot: ProjectSnapshot, id: string): ActionNode | undefined {

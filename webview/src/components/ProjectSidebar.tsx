@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import type { ProjectSnapshot } from '../../../src/shared/protocol';
 import type { RequestBody } from '../host';
 
@@ -9,8 +10,9 @@ interface ProjectSidebarProps {
   canEdit: boolean;
   choosePipeline: (name: string) => void;
   chooseFlowgroup: (id: string) => void;
-  onCreateMode: (mode: 'bronze' | 'template' | 'blueprint') => void;
+  onCreateMode: (mode: 'bronze' | 'new-flowgroup' | 'template' | 'blueprint') => void;
   send: (body: RequestBody, expectUpdate?: boolean) => string;
+  onClose: () => void;
 }
 
 export function ProjectSidebar({
@@ -23,10 +25,26 @@ export function ProjectSidebar({
   chooseFlowgroup,
   onCreateMode,
   send,
+  onClose,
 }: ProjectSidebarProps) {
+  const [query, setQuery] = useState('');
+  const selectedPipeline = snapshot.pipelines.find((item) => item.name === pipelineName);
+  const matched =
+    selectedPipeline?.flowgroups.filter((group) =>
+      group.name.toLocaleLowerCase().includes(query.toLocaleLowerCase()),
+    ) ?? [];
   return (
-    <nav className="sidebar" aria-label="Project structure">
-      <h2 className="section-heading">Pipelines</h2>
+    <nav
+      className="sidebar designer-browse"
+      id="designer-browse"
+      aria-label="Browse project graphs"
+    >
+      <div className="browse-header">
+        <h2 className="section-heading">Browse graphs</h2>
+        <button className="button quiet small" onClick={onClose} aria-label="Close browse panel">
+          Close
+        </button>
+      </div>
       <ul className="tree">
         {snapshot.pipelines.map((item) => (
           <li key={item.name}>
@@ -41,27 +59,50 @@ export function ProjectSidebar({
               <span className="label">{item.name}</span>
               <span className="tree-count">{item.flowgroups.length}</span>
             </button>
-            <ul className="tree-nested">
-              {item.flowgroups.map((group) => (
-                <li key={group.id}>
-                  <button
-                    className="tree-button"
-                    aria-current={
-                      mode === 'flowgroup' && group.id === flowgroupId ? 'page' : undefined
-                    }
-                    onClick={() => chooseFlowgroup(group.id)}
-                  >
-                    <span className="tree-icon" aria-hidden="true">
-                      ◇
-                    </span>
-                    <span className="label">{group.name}</span>
-                  </button>
-                </li>
-              ))}
-            </ul>
           </li>
         ))}
       </ul>
+      {selectedPipeline && (
+        <>
+          <h2 className="section-heading">{selectedPipeline.name} flowgroups</h2>
+          <label className="sr-only" htmlFor="browse-flowgroups">
+            Find flowgroup
+          </label>
+          <input
+            id="browse-flowgroups"
+            className="input browse-search"
+            placeholder="Find flowgroup"
+            value={query}
+            onChange={(event) => setQuery(event.target.value)}
+          />
+          <ul className="tree">
+            {matched.slice(0, 100).map((group) => (
+              <li key={group.id}>
+                <button
+                  className="tree-button"
+                  aria-current={
+                    mode === 'flowgroup' && group.id === flowgroupId ? 'page' : undefined
+                  }
+                  onClick={() => chooseFlowgroup(group.id)}
+                >
+                  <span className="tree-icon" aria-hidden="true">
+                    ◇
+                  </span>
+                  <span className="label" title={group.name}>
+                    {group.name}
+                  </span>
+                </button>
+              </li>
+            ))}
+          </ul>
+          {matched.length > 100 && (
+            <p className="section-note">
+              Showing 100 of {matched.length} flowgroups. Type to narrow results; the native LHP
+              sidebar contains the full tree.
+            </p>
+          )}
+        </>
+      )}
       {snapshot.pipelines.length === 0 && (
         <p className="section-note">
           {!snapshot.context.runtime.compatible
@@ -81,6 +122,13 @@ export function ProjectSidebar({
           disabled={!canEdit}
         >
           Files → bronze
+        </button>
+        <button
+          className="button quiet small"
+          onClick={() => onCreateMode('new-flowgroup')}
+          disabled={!canEdit}
+        >
+          Flowgroup / pipeline
         </button>
         <button
           className="button quiet small"

@@ -39,14 +39,35 @@ export async function refreshProject(host: Controller): Promise<void> {
     const previous = host.snapshot;
     const pending = pendingSnapshot(previous, context, epoch);
     await host.publishSnapshot(pending, project, epoch);
+    await host.workspace.bootstrapCatalog(project, runtime, signal).catch((error) => {
+      if (signal.aborted) throw error;
+      // Malformed catalogue files must not prevent physical source repair or
+      // canonical snapshot diagnostics from being loaded.
+      if (host.workspace.index)
+        host.workspace.index = {
+          ...host.workspace.index,
+          warnings: [
+            ...host.workspace.index.warnings,
+            `Catalogue unavailable: ${error instanceof Error ? error.message : 'unknown error'}`,
+          ],
+        };
+      host.notifyState();
+    });
     if (!runtime.compatible) return;
     try {
       const data = await host.call('snapshot', project, runtime, signal);
       if (epoch !== host.epoch || signal.aborted || host.project !== project) return;
       let snapshot = normalizeSnapshot(project.root, data, context, epoch);
-      snapshot.documents = (await snapshotDocuments(project.root, snapshot, signal)).map(
-        ({ path, version, dirty }) => ({ path, version, dirty }),
-      );
+      snapshot.documents = (
+        await snapshotDocuments(
+          project.root,
+          snapshot,
+          signal,
+          host.projects
+            .filter((candidate) => candidate !== project)
+            .map((candidate) => candidate.root),
+        )
+      ).map(({ path, version, dirty }) => ({ path, version, dirty }));
       snapshot.refreshState = 'ready';
       if (snapshot.stale && pending.flowgroups.length)
         snapshot = {

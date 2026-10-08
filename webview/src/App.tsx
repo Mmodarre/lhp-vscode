@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type {
   ActionMutation,
   DesignerSelection,
@@ -6,6 +6,7 @@ import type {
   InstanceRequest,
   OperationStatus,
   PreviewResult,
+  ProjectDatasetIndex,
   ProjectSnapshot,
   ProjectSummary,
   SourceRef,
@@ -13,24 +14,37 @@ import type {
 import { PROTOCOL_VERSION } from '../../src/shared/protocol';
 import { request, subscribe } from './host';
 import type { RequestBody } from './host';
-import { actionGraph, documentVersions, pipelineGraph } from './model';
-import { GraphPanel } from './components/GraphPanel';
-import { ActionInspector } from './components/ActionInspector';
-import { AddActionInspector } from './components/AddActionInspector';
-import { FlowgroupInspector } from './components/FlowgroupInspector';
+import { actionGraph, datasetGraph, documentVersions, pipelineGraph, projectGraph } from './model';
+import { GraphWorkspace } from './components/GraphWorkspace';
+import { SelectionInspector } from './components/SelectionInspector';
+import { DesignerStatus } from './components/DesignerStatus';
 import { BronzeWizard } from './components/BronzeWizard';
 import { InstanceWizard } from './components/InstanceWizard';
 import { ProjectChrome } from './components/ProjectChrome';
 import { ProjectSidebar } from './components/ProjectSidebar';
-import { EdgeInspector } from './components/EdgeInspector';
 import { PreviewPane } from './components/PreviewPane';
 import { NoProjectScreen } from './components/NoProjectScreen';
+import { FlowgroupWizard } from './components/FlowgroupWizard';
 
-type Mode = 'pipeline' | 'flowgroup' | 'bronze' | 'template' | 'blueprint' | 'preview';
+type Mode =
+  | 'project'
+  | 'pipeline'
+  | 'flowgroup'
+  | 'data'
+  | 'bronze'
+  | 'new-flowgroup'
+  | 'template'
+  | 'blueprint'
+  | 'preview';
 
 export function App() {
+  const activeProjectRef = useRef<string | undefined>(undefined);
+  const feedbackGenerationRef = useRef(0);
+  const requestGenerationRef = useRef(new Map<string, number>());
   const [projects, setProjects] = useState<ProjectSummary[]>([]);
+  const [logoUri, setLogoUri] = useState<string>();
   const [snapshot, setSnapshot] = useState<ProjectSnapshot>();
+  const [datasets, setDatasets] = useState<ProjectDatasetIndex>();
   const [trusted, setTrusted] = useState(true);
   const [bootstrapped, setBootstrapped] = useState(false);
   const [protocolError, setProtocolError] = useState('');
@@ -44,11 +58,36 @@ export function App() {
   const [flowgroupId, setFlowgroupId] = useState('');
   const [actionId, setActionId] = useState('');
   const [edgeId, setEdgeId] = useState('');
+  const [datasetId, setDatasetId] = useState('');
+  const [instanceDefinition, setInstanceDefinition] = useState('');
+  const [browseOpen, setBrowseOpen] = useState(false);
   const [showAddAction, setShowAddAction] = useState(false);
   const [showInspector, setShowInspector] = useState(true);
   const [navigation, setNavigation] = useState<DesignerSelection>();
+  const [queuedGuide, setQueuedGuide] = useState<Extract<HostMessage, { type: 'guide' }>>();
 
   useEffect(() => {
+    const resetForProject = (projectId?: string) => {
+      if (activeProjectRef.current === projectId) return;
+      activeProjectRef.current = projectId;
+      feedbackGenerationRef.current++;
+      requestGenerationRef.current.clear();
+      setPreview(undefined);
+      setDatasets(undefined);
+      setMode('pipeline');
+      setPipelineId('');
+      setFlowgroupId('');
+      setActionId('');
+      setEdgeId('');
+      setDatasetId('');
+      setBrowseOpen(false);
+      setShowAddAction(false);
+      setInstanceDefinition('');
+      setStatus(undefined);
+      setPending(undefined);
+      setError('');
+      setMessage('');
+    };
     const unsubscribe = subscribe((incoming: HostMessage) => {
       switch (incoming.type) {
         case 'bootstrap':
@@ -59,25 +98,27 @@ export function App() {
             );
             break;
           }
+          resetForProject(incoming.snapshot?.context.project.id);
           setProjects(incoming.projects);
+          setLogoUri(incoming.logoUri);
           setTrusted(incoming.trusted);
           setNavigation(incoming.selection);
+          setDatasets(incoming.datasets);
           // A project switch may bootstrap before its first snapshot arrives.
           // Clear the previous project's graph instead of presenting it as current.
           setSnapshot(incoming.snapshot);
-          if (!incoming.snapshot) {
-            setPreview(undefined);
-            setMode('pipeline');
-            setPipelineId('');
-            setFlowgroupId('');
-            setActionId('');
-            setEdgeId('');
-          }
           break;
         case 'select':
           setNavigation(incoming.selection);
           break;
+        case 'datasets':
+          setDatasets(incoming.datasets);
+          break;
+        case 'guide':
+          setQueuedGuide(incoming);
+          break;
         case 'snapshot':
+          resetForProject(incoming.snapshot.context.project.id);
           setSnapshot((current) =>
             !current ||
             current.context.project.id !== incoming.snapshot.context.project.id ||
@@ -100,19 +141,32 @@ export function App() {
           );
           break;
         case 'result':
+          if (
+            requestGenerationRef.current.get(incoming.requestId) !== feedbackGenerationRef.current
+          )
+            break;
+          requestGenerationRef.current.delete(incoming.requestId);
           setPending((current) => (current === incoming.requestId ? undefined : current));
           if (incoming.success) {
-            setMessage(incoming.message ?? 'Done.');
-            setError('');
+            if (incoming.message) {
+              setMessage(incoming.message);
+              setError('');
+            }
           } else {
             setError(incoming.message ?? 'The operation failed.');
             setMessage('');
           }
           break;
         case 'error':
-          setPending((current) =>
-            !incoming.requestId || current === incoming.requestId ? undefined : current,
-          );
+          // Unscoped host errors may arrive after a project switch. The native
+          // notification and refreshed snapshot still surface those failures.
+          if (
+            !incoming.requestId ||
+            requestGenerationRef.current.get(incoming.requestId) !== feedbackGenerationRef.current
+          )
+            break;
+          requestGenerationRef.current.delete(incoming.requestId);
+          setPending((current) => (current === incoming.requestId ? undefined : current));
           setError(
             `${incoming.message}${incoming.code === 'STALE_DOCUMENT' || incoming.code === 'STALE_CONTEXT' ? ' Refresh and review the latest YAML before retrying.' : ''}`,
           );
@@ -146,7 +200,16 @@ export function App() {
       setNavigation(undefined);
       return;
     }
-    if (group) {
+    if (navigation.view === 'project') {
+      setMode('project');
+      setActionId('');
+      setEdgeId('');
+    } else if (navigation.view === 'dataset') {
+      setMode('data');
+      setDatasetId(navigation.datasetId ?? '');
+      setActionId('');
+      setEdgeId('');
+    } else if (group) {
       setPipelineId(group.pipeline);
       setFlowgroupId(group.id);
       setActionId(navigation.actionId ?? '');
@@ -160,8 +223,20 @@ export function App() {
     setEdgeId('');
     setShowAddAction(false);
     setShowInspector(true);
+    setBrowseOpen(false);
     setNavigation(undefined);
   }, [navigation, snapshot]);
+
+  useEffect(() => {
+    if (!queuedGuide || !snapshot || queuedGuide.projectId !== snapshot.context.project.id) return;
+    if (snapshot.revision < queuedGuide.revision) return;
+    if (snapshot.revision === queuedGuide.revision) {
+      setInstanceDefinition(queuedGuide.definition ?? '');
+      setMode(queuedGuide.guide === 'flowgroup' ? 'new-flowgroup' : queuedGuide.guide);
+      setBrowseOpen(false);
+    }
+    setQueuedGuide(undefined);
+  }, [queuedGuide, snapshot]);
 
   const context = snapshot
     ? { projectId: snapshot.context.project.id, revision: snapshot.revision }
@@ -171,6 +246,7 @@ export function App() {
       setMessage('');
       setError('');
       const id = request({ ...body, ...(context ? { context } : {}) } as RequestBody);
+      requestGenerationRef.current.set(id, feedbackGenerationRef.current);
       if (expectUpdate) setPending(id);
       return id;
     },
@@ -198,23 +274,49 @@ export function App() {
     [snapshot, pending, send],
   );
 
-  const pipeline =
-    snapshot?.pipelines.find((item) => item.name === pipelineId) ?? snapshot?.pipelines[0];
-  const flowgroup =
-    snapshot?.flowgroups.find((item) => item.id === flowgroupId) ??
-    snapshot?.flowgroups.find((item) => item.pipeline === pipeline?.name);
+  const pipeline = pipelineId
+    ? snapshot?.pipelines.find((item) => item.name === pipelineId)
+    : snapshot?.pipelines[0];
+  const flowgroup = flowgroupId
+    ? snapshot?.flowgroups.find((item) => item.id === flowgroupId)
+    : snapshot?.flowgroups.find((item) => item.pipeline === pipeline?.name);
   const selectedAction = flowgroup?.actions.find((action) => action.id === actionId);
   const selectedEdge = flowgroup?.edges.find((edge) => edge.id === edgeId);
-  const selectedSummary =
-    pipeline?.flowgroups.find((item) => item.id === flowgroupId) ?? pipeline?.flowgroups[0];
+  const selectedSummary = flowgroupId
+    ? pipeline?.flowgroups.find((item) => item.id === flowgroupId)
+    : pipeline?.flowgroups[0];
+  const missingSelection =
+    mode === 'pipeline' && pipelineId && !pipeline
+      ? 'pipeline'
+      : mode === 'flowgroup' && flowgroupId && !flowgroup
+        ? 'flowgroup'
+        : undefined;
+  const currentDatasets =
+    datasets &&
+    snapshot &&
+    datasets.projectId === snapshot.context.project.id &&
+    datasets.revision === snapshot.revision &&
+    datasets.environment === snapshot.context.environment
+      ? datasets
+      : undefined;
+  const selectedDataset = currentDatasets?.datasets.find((item) => item.id === datasetId);
+  // The host retains graph arrays while diagnostics and document dirty flags
+  // change. Keep large graph layout stable across those lightweight updates.
   const graph = useMemo(() => {
     if (!snapshot) return undefined;
-    return mode === 'flowgroup' && flowgroup
-      ? actionGraph(flowgroup)
-      : pipeline
-        ? pipelineGraph(snapshot, pipeline.name)
-        : undefined;
-  }, [snapshot, mode, flowgroup, pipeline]);
+    if (mode === 'project') return projectGraph(snapshot);
+    if (mode === 'data') return currentDatasets ? datasetGraph(currentDatasets) : undefined;
+    if (mode === 'flowgroup') return flowgroup ? actionGraph(flowgroup) : undefined;
+    return pipeline ? pipelineGraph(snapshot, pipeline.name) : undefined;
+  }, [
+    mode,
+    flowgroup,
+    pipeline,
+    currentDatasets,
+    snapshot?.pipelines,
+    snapshot?.flowgroupEdges,
+    snapshot?.pipelineEdges,
+  ]);
   const syntaxError =
     snapshot?.diagnostics.some((item) => item.layer === 'syntax' && item.severity === 'error') ??
     false;
@@ -248,6 +350,7 @@ export function App() {
     setEdgeId('');
     setMode('pipeline');
     setShowAddAction(false);
+    setBrowseOpen(false);
   };
   const chooseFlowgroup = (id: string) => {
     setFlowgroupId(id);
@@ -255,6 +358,7 @@ export function App() {
     setEdgeId('');
     setMode('flowgroup');
     setShowAddAction(false);
+    setBrowseOpen(false);
   };
   const chooseAction = (id: string) => {
     setActionId(id);
@@ -265,12 +369,29 @@ export function App() {
     if (action) open(action.source);
   };
   const selectProject = (id: string) => {
+    feedbackGenerationRef.current++;
+    requestGenerationRef.current.clear();
+    setQueuedGuide(undefined);
     setSnapshot(undefined);
     setPreview(undefined);
     setMode('pipeline');
     setMessage('');
     setError('');
-    setPending(request({ type: 'selectProject', projectId: id }));
+    const requestId = request({ type: 'selectProject', projectId: id });
+    requestGenerationRef.current.set(requestId, feedbackGenerationRef.current);
+    setPending(requestId);
+    setDatasets(undefined);
+  };
+  const chooseData = () => {
+    setMode('data');
+    setBrowseOpen(false);
+    if (snapshot?.context.trusted && !currentDatasets && !status?.running && !pending)
+      send({ type: 'loadData' }, true);
+  };
+  const chooseCreate = (next: 'bronze' | 'template' | 'blueprint' | 'new-flowgroup') => {
+    setMode(next);
+    setInstanceDefinition('');
+    setBrowseOpen(false);
   };
   const createInstance = (values: InstanceRequest) => {
     send({ type: 'createInstance', values }, true);
@@ -293,6 +414,7 @@ export function App() {
   if (!snapshot)
     return (
       <NoProjectScreen
+        logoUri={logoUri}
         projects={projects}
         trusted={trusted}
         pending={pending}
@@ -303,10 +425,13 @@ export function App() {
       />
     );
 
-  const showingGraph = mode === 'pipeline' || mode === 'flowgroup';
+  const showingGraph =
+    mode === 'project' || mode === 'pipeline' || mode === 'flowgroup' || mode === 'data';
   return (
     <div className="app">
       <ProjectChrome
+        logoUri={logoUri}
+        mode={mode}
         snapshot={snapshot}
         projects={projects}
         status={status}
@@ -318,122 +443,99 @@ export function App() {
         message={message}
         error={error}
         showInspector={showInspector}
+        canEdit={canEdit}
         setShowInspector={setShowInspector}
         setPreview={setPreview}
         selectProject={selectProject}
+        onProjectMap={() => {
+          setMode('project');
+          setBrowseOpen(false);
+        }}
+        onData={chooseData}
+        onCreate={chooseCreate}
         send={send}
       />
       <div className={`body${showInspector ? ' with-inspector' : ''}`}>
-        <ProjectSidebar
-          snapshot={snapshot}
-          mode={mode}
-          pipelineName={pipeline?.name}
-          flowgroupId={flowgroup?.id}
-          canEdit={canEdit}
-          choosePipeline={choosePipeline}
-          chooseFlowgroup={chooseFlowgroup}
-          onCreateMode={setMode}
-          send={send}
-        />
+        {browseOpen && (
+          <ProjectSidebar
+            snapshot={snapshot}
+            mode={mode}
+            pipelineName={pipeline?.name}
+            flowgroupId={flowgroup?.id}
+            canEdit={canEdit}
+            choosePipeline={choosePipeline}
+            chooseFlowgroup={chooseFlowgroup}
+            onCreateMode={chooseCreate}
+            send={send}
+            onClose={() => setBrowseOpen(false)}
+          />
+        )}
         <main className="main">
           {showingGraph && (
-            <>
-              <div className="pane-title">
-                <h2>
-                  {mode === 'flowgroup'
-                    ? `${flowgroup?.name ?? 'Flowgroup'} · actions`
-                    : `${pipeline?.name ?? 'Pipeline'} · flowgroups`}
-                </h2>
-                <span className="subtitle">
-                  {mode === 'flowgroup' ? 'Action dependencies' : 'Flowgroup dependencies'}
-                </span>
-              </div>
-              {mode === 'flowgroup' && flowgroup && (
-                <div className="toolbar">
-                  <button
-                    className="button quiet small"
-                    onClick={() => choosePipeline(flowgroup.pipeline)}
-                  >
-                    ← Pipeline graph
-                  </button>
-                  <button className="button secondary small" onClick={() => open(flowgroup.source)}>
-                    Open YAML
-                  </button>
-                  <span className="toolbar-spacer" />
-                  <button
-                    className="button small"
-                    onClick={() => {
-                      setShowAddAction(true);
-                      setActionId('');
-                      setEdgeId('');
-                      setShowInspector(true);
-                    }}
-                    disabled={!canEdit || !flowgroup.editable}
-                  >
-                    + Add action
-                  </button>
-                </div>
-              )}
-              {graph ? (
-                <GraphPanel
-                  graph={graph}
-                  selectedId={mode === 'flowgroup' ? actionId : selectedSummary?.id}
-                  onSelect={(id) => (mode === 'flowgroup' ? chooseAction(id) : chooseFlowgroup(id))}
-                  onEdgeSelect={(id) => {
-                    setEdgeId(id);
-                    setActionId('');
-                    setShowInspector(true);
-                  }}
-                  emptyTitle={
-                    mode === 'flowgroup'
-                      ? 'No actions in this flowgroup'
-                      : 'No flowgroups in this pipeline'
-                  }
-                  emptyDescription={
-                    mode === 'flowgroup'
-                      ? 'Add the first action or open the YAML source.'
-                      : 'Create a flowgroup with the files-to-bronze guide or native YAML.'
-                  }
-                />
-              ) : (
-                <div className="empty">
-                  <h2>
-                    {!snapshot.context.runtime.compatible
-                      ? 'Pipeline graph unavailable'
-                      : refreshState === 'failed'
-                        ? 'Project graph could not load'
-                        : refreshState === 'loading'
-                          ? 'Refreshing project graph…'
-                          : 'No graph available'}
-                  </h2>
-                  <p>
-                    {!snapshot.context.runtime.compatible
-                      ? 'Choose a Python interpreter that can load the LHP editor integration.'
-                      : refreshState === 'failed'
-                        ? 'Choose Refresh to retry loading this project.'
-                        : refreshState === 'loading'
-                          ? 'The pipeline view will appear when refresh finishes.'
-                          : 'Choose a pipeline or create a flowgroup.'}
-                  </p>
-                </div>
-              )}
-            </>
+            <GraphWorkspace
+              snapshot={snapshot}
+              mode={mode}
+              pipeline={pipeline}
+              flowgroup={flowgroup}
+              currentDatasets={currentDatasets}
+              graph={graph}
+              selectedSummary={selectedSummary}
+              missingSelection={missingSelection}
+              actionId={actionId}
+              datasetId={datasetId}
+              canEdit={canEdit}
+              browseOpen={browseOpen}
+              pending={pending}
+              status={status}
+              refreshState={refreshState}
+              onToggleBrowse={() => setBrowseOpen(!browseOpen)}
+              onChoosePipeline={choosePipeline}
+              onChooseFlowgroup={chooseFlowgroup}
+              onChooseAction={chooseAction}
+              onSelectDataset={(id) => {
+                setDatasetId(id);
+                setShowInspector(true);
+              }}
+              onSelectEdge={(id) => {
+                setEdgeId(id);
+                setActionId('');
+                setShowInspector(true);
+              }}
+              onAddAction={() => {
+                setShowAddAction(true);
+                setActionId('');
+                setEdgeId('');
+                setShowInspector(true);
+              }}
+              onOpen={open}
+              onCreateFlowgroup={() => chooseCreate('new-flowgroup')}
+              onLoadData={() => send({ type: 'loadData' }, true)}
+            />
           )}
           {mode === 'bronze' && (
             <BronzeWizard
               pipelines={snapshot.pipelines.map((item) => item.name)}
-              busy={!!pending}
+              busy={!canEdit}
               onCancel={() => setMode('pipeline')}
               onCreate={(values) => send({ type: 'createBronze', values }, true)}
             />
           )}
+          {mode === 'new-flowgroup' && (
+            <FlowgroupWizard
+              pipelines={snapshot.pipelines.map((item) => item.name)}
+              busy={!canEdit}
+              onCancel={() => setMode('pipeline')}
+              onCreate={(values) => send({ type: 'createFlowgroup', values }, true)}
+            />
+          )}
           {(mode === 'template' || mode === 'blueprint') && (
             <InstanceWizard
-              key={mode}
+              key={`${mode}:${instanceDefinition}`}
               kind={mode}
+              initialDefinition={instanceDefinition}
               catalog={snapshot.catalog}
               pipelines={snapshot.pipelines.map((item) => item.name)}
-              busy={!!pending}
+              busy={!canEdit}
               onCancel={() => setMode('pipeline')}
               onCreate={createInstance}
               onOpen={open}
@@ -449,102 +551,41 @@ export function App() {
           )}
         </main>
         {showInspector && (
-          <aside className="inspector" aria-label="Selection inspector">
-            {mode === 'flowgroup' && flowgroup && showAddAction ? (
-              <AddActionInspector
-                flowgroupId={flowgroup.id}
-                catalog={snapshot.catalog}
-                canEdit={canEdit && flowgroup.editable}
-                onCancel={() => setShowAddAction(false)}
-                onMutate={mutate}
-              />
-            ) : mode === 'flowgroup' && flowgroup && selectedAction ? (
-              <ActionInspector
-                action={selectedAction}
-                detail={flowgroup}
-                catalog={snapshot.catalog}
-                canEditGraph={canEdit && flowgroup.editable}
-                onOpen={open}
-                onMutate={mutate}
-              />
-            ) : mode === 'flowgroup' && flowgroup && selectedEdge ? (
-              <EdgeInspector
-                edge={selectedEdge}
-                detail={flowgroup}
-                canEdit={canEdit}
-                onMutate={mutate}
-              />
-            ) : mode === 'flowgroup' && flowgroup ? (
-              <FlowgroupInspector
-                detail={flowgroup}
-                catalog={snapshot.catalog}
-                canEditGraph={canEdit}
-                onOpen={open}
-                onMutate={mutate}
-                onShowActions={() => setActionId(flowgroup.actions[0]?.id ?? '')}
-              />
-            ) : mode === 'pipeline' && selectedSummary ? (
-              <div className="inspector-body">
-                <h2 className="inspector-title">{selectedSummary.name}</h2>
-                <p className="inspector-subtitle">
-                  {selectedSummary.actionCount} actions · {selectedSummary.origin.kind}
-                </p>
-                <div className="inspector-actions">
-                  <button
-                    className="button small"
-                    onClick={() => chooseFlowgroup(selectedSummary.id)}
-                  >
-                    Open action graph
-                  </button>
-                  <button
-                    className="button secondary small"
-                    onClick={() => open(selectedSummary.source)}
-                  >
-                    Open source YAML
-                  </button>
-                </div>
-                {selectedSummary.origin.definition && (
-                  <button
-                    className="link-button"
-                    onClick={() => open(selectedSummary.origin.definition!)}
-                  >
-                    Open {selectedSummary.origin.kind} definition
-                  </button>
-                )}
-                {selectedSummary.origin.instance && (
-                  <button
-                    className="link-button"
-                    onClick={() => open(selectedSummary.origin.instance!)}
-                  >
-                    Open instance YAML
-                  </button>
-                )}
-              </div>
-            ) : (
-              <div className="inspector-body">
-                <h2 className="inspector-title">Project</h2>
-                <p className="field-help">
-                  Choose a pipeline, flowgroup, or action to inspect its source and edit options.
-                </p>
-              </div>
-            )}
-          </aside>
+          <SelectionInspector
+            snapshot={snapshot}
+            mode={mode}
+            flowgroup={flowgroup}
+            selectedAction={selectedAction}
+            selectedEdge={selectedEdge}
+            selectedSummary={selectedSummary}
+            missingSelection={missingSelection}
+            selectedDataset={selectedDataset}
+            canEdit={canEdit}
+            showAddAction={showAddAction}
+            onCancelAdd={() => setShowAddAction(false)}
+            onMutate={mutate}
+            onOpen={open}
+            onShowActions={() => setActionId(flowgroup?.actions[0]?.id ?? '')}
+            onChooseFlowgroup={chooseFlowgroup}
+            onSelectOwner={(source) => {
+              if (!source.flowgroupId) return;
+              const owner = snapshot.flowgroups.find((item) => item.id === source.flowgroupId);
+              if (!owner) {
+                setError(
+                  'This dataset owner is no longer in the current project graph. Open its source file or refresh lineage.',
+                );
+                return;
+              }
+              setError('');
+              choosePipeline(owner.pipeline);
+              chooseFlowgroup(owner.id);
+              if (source.actionId && owner.actions.some((action) => action.id === source.actionId))
+                setActionId(source.actionId);
+            }}
+          />
         )}
       </div>
-      <footer className="statusbar" role="status">
-        <span>{snapshot.context.environment} environment</span>
-        <span>·</span>
-        <span>{snapshot.context.runtime.lhpVersion ?? 'LHP runtime unavailable'}</span>
-        <span>·</span>
-        <span>
-          {!snapshot.context.runtime.compatible || refreshState !== 'ready'
-            ? 'Validation unavailable'
-            : `${snapshot.diagnostics.filter((item) => item.severity === 'error').length} errors, ${snapshot.diagnostics.filter((item) => item.severity === 'warning').length} warnings`}
-        </span>
-        <span className="spacer" />
-        {status?.message && <span>{status.message}</span>}
-        <span>Revision {snapshot.revision}</span>
-      </footer>
+      <DesignerStatus snapshot={snapshot} status={status} />
     </div>
   );
 }

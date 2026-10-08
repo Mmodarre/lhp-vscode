@@ -46,6 +46,16 @@ await writeFile(
     'security.workspace.trust.enabled': false,
   }),
 );
+await mkdir(path.join(workspace, 'templates'), { recursive: true });
+await mkdir(path.join(workspace, 'presets'), { recursive: true });
+await writeFile(
+  path.join(workspace, 'templates/reader.yaml'),
+  'name: reader\nparameters: []\nactions: []\n',
+);
+await writeFile(
+  path.join(workspace, 'presets/common.yaml'),
+  'name: common\ndefaults:\n  readMode: stream\n',
+);
 const version = process.env.VSCODE_TEST_VERSION || '1.106.0';
 const executable = await downloadAndUnzipVSCode(version);
 const extensions = path.resolve('.vscode-test/extensions');

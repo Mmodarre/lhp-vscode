@@ -46,4 +46,7 @@ export class PreviewDocuments implements vscode.TextDocumentContentProvider {
       preview: true,
     });
   }
+  uri(path: string): vscode.Uri | undefined {
+    return this.paths.get(path);
+  }
 }

@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.2.0
+
+- Replace the initial single project tree with approved native Configuration, Pipelines, Resources, Data and Generated Output views for the selected project; use the exact LHP identity and accessible theme-aware designer styling.
+- Browse bounded physical resources without Python or workspace trust, preserve malformed files, isolate nested projects and update edited resources incrementally.
+- Add project dependency and table/sink lineage views, first-flowgroup and TPC-H guides, exact source navigation, resource consumers, read-only template/configuration/preset/substitution inspections and persisted-source preview comparison.
+- Upgrade YAML assistance with scoped content-aware schemas, structural cursor context, catalogue action snippets, parameter/reference/file/token suggestions, hover/definitions and a deterministic version-checked path fix.
+- Keep native documents authoritative, execution trust-gated, full generation explicit, previews expiring and generated provenance exact. No remote execution or core/E2E changes.
+
 ## 0.1.2
 
 - Add a native Lakehouse Plumber Activity Bar Project tree for projects, pipelines, flowgroups, actions and related source files. Expand nodes on demand; opening the tree does not load inactive projects.

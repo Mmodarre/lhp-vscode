@@ -243,6 +243,17 @@ export function normalizeSnapshot(
     context: { ...context, environment: text(data.environment, context.environment), environments },
     flowgroups,
     flowgroupEdges,
+    projectMetadata: jsonObject(data.project),
+    pipelineEdges: items(record(dependencies.pipeline_graph).edges).map((raw, index) => {
+      const edge = record(raw);
+      return {
+        id: `pipeline:${index}:${text(edge.source)}>${text(edge.target)}`,
+        source: text(edge.source),
+        target: text(edge.target),
+        dataset: text(edge.dataset, 'data dependency'),
+        editable: false,
+      };
+    }),
     pipelines: [...pipelines]
       .sort(([a], [b]) => a.localeCompare(b))
       .map(([name, groups]) => ({ name, flowgroups: groups })),

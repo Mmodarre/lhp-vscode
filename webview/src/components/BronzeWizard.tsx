@@ -50,6 +50,7 @@ export function BronzeWizard({
           <input
             className="input"
             id="bronze-name"
+            autoFocus
             value={name}
             placeholder="orders_bronze"
             onChange={(event) => setName(event.target.value)}

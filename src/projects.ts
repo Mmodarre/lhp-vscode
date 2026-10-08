@@ -1,5 +1,6 @@
 import * as path from 'node:path';
-import { access, stat } from 'node:fs/promises';
+import { access, stat, lstat, readFile } from 'node:fs/promises';
+import { isMap, parseDocument } from 'yaml';
 import { pythonInVenv } from './onboardingProcess';
 import * as vscode from 'vscode';
 import { BridgeClient } from './bridgeClient';
@@ -10,27 +11,46 @@ import { isRecord } from './shared/guards';
 export interface Project {
   root: string;
   summary: ProjectSummary;
+  discoveryWarning?: string;
 }
 export async function discoverProjects(): Promise<Project[]> {
   const files = await vscode.workspace.findFiles(
     '**/lhp.yaml',
     '**/{node_modules,.venv,venv,.git,generated,.tmp}/**',
-    200,
+    201,
   );
-  return files
-    .filter((uri) => uri.scheme === 'file')
-    .map((uri) => {
-      const root = path.dirname(uri.fsPath);
-      return {
-        root,
-        summary: {
-          id: vscode.Uri.file(root).toString(),
-          name: path.basename(root),
-          rootLabel: vscode.workspace.asRelativePath(root, true),
-        },
-      };
-    })
-    .sort((a, b) => a.root.localeCompare(b.root));
+  const projects = await Promise.all(
+    files
+      .slice(0, 200)
+      .filter((uri) => uri.scheme === 'file')
+      .map(async (uri) => {
+        const root = path.dirname(uri.fsPath);
+        let name = path.basename(root);
+        try {
+          const info = await lstat(uri.fsPath);
+          if (info.isFile() && !info.isSymbolicLink() && info.size <= 512 * 1024) {
+            const document = parseDocument(await readFile(uri.fsPath, 'utf8'));
+            const value = isMap(document.contents) ? document.get('name') : undefined;
+            if (typeof value === 'string' && value.trim()) name = value.slice(0, 200);
+          }
+        } catch {
+          /* Malformed project config remains browsable. */
+        }
+        return {
+          root,
+          discoveryWarning:
+            files.length > 200
+              ? 'Project discovery reached its 200-project budget. Open a narrower workspace to select additional roots.'
+              : undefined,
+          summary: {
+            id: vscode.Uri.file(root).toString(),
+            name,
+            rootLabel: vscode.workspace.asRelativePath(root, true),
+          },
+        };
+      }),
+  );
+  return projects.sort((a, b) => a.root.localeCompare(b.root));
 }
 export async function resolveInterpreter(
   project: Project,

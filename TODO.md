@@ -1,3 +1,26 @@
+# Active 0.2.0 acceptance checklist
+
+Approved final v3 design: [scope and decisions](docs/sidebar-redesign.md). No phase is silently deferred. Historical 0.1.x evidence follows this active checklist.
+
+- [x] Record approval, ownership, source-of-truth design and typed resource/dataset/inspection contracts.
+- [x] A: bounded contained physical index; runtime-independent browse; configured/declared path classification; independent catalogue and live context.
+- [x] B: five native views, remembered state/search, source-authoritative actions, help/welcome and runtime/trust/stale states.
+- [x] C: canonical project/data views; draft template, saved config, preset/substitution inspections; generated inventory and native compare.
+- [x] D: exact LHP assets/palette, project/dataset designer, first-flowgroup guides, contextual help and TPC-H bootstrap.
+- [x] E: scoped YAML classification, CST context, references/tokens/files, snippets, precise hover/definitions and safe deterministic fixes.
+- [x] Verify complete design matrix, including honest wheel/sandbox/cloud/filter boundaries and every resource/config home.
+- [x] Focused unit/bridge/native integration gates; no E2E changes without explicit user approval.
+- [ ] Final type/lint/format/build/tests/audit; all three desktop CI jobs; VSIX asset/path/secret audit.
+- [ ] Root independent review, coordinated scoped commits/push, truthful docs/evidence and audited 0.2.0 VSIX delivery.
+
+Root independently verified the frozen implementation on Linux ARM64 on 8 October 2026: typecheck, lint, formatting, production build and diff checks passed; all **82 unit/React/real-adapter tests across 18 files passed without skips**, all **nine Python bridge tests passed**, and the production dependency audit reported **zero vulnerabilities**. The fresh real VS Code 1.106.0 / Red Hat YAML 1.24.0 integration suite exited successfully, including five-view navigation, structural YAML providers, template/config/preset inspection, generated-source provenance/diff, native draft creation, undo/redo, stale guards and project isolation. Actual native workbench captures verified the approved identity and graph layout in dark, light and high-contrast themes.
+
+The read-only public performance check preserved **4,017 flowgroups, 18,766 actions, 17,961 action edges, 3,212 flowgroup edges and 2,813 native document versions**. It completed in **20.119 seconds**, with **41,921,057 bytes** in the webview snapshot and **445,960,192 bytes** host RSS in that shared Linux ARM64 run. These are measurements, not fixed performance guarantees. The Python decoded-response budget remains 32 MiB and never truncates a graph. The independent physical index and on-demand Data inspection keep their separate documented bounds. The core integration worktree remains clean; original LHP, website and core E2E files were not modified.
+
+Desktop CI and the final 0.2.0 artifact audit are pending this implementation commit. Source review found no private local paths or project markers in the changed public text files. No Marketplace publication or merge is authorised by this delivery step.
+
+---
+
 # Implementation checklist
 
 ## 0.1.2 native Project tree and command shortcuts

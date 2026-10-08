@@ -1,7 +1,8 @@
 import * as yauzl from 'yauzl';
 import { readFile } from 'node:fs/promises';
 import { createHash } from 'node:crypto';
-const filename = '.tmp/lhp-vscode-0.1.2.vsix';
+const { version } = JSON.parse(await readFile('package.json', 'utf8'));
+const filename = `.tmp/lhp-vscode-${version}.vsix`;
 const required = new Set([
   'extension/package.json',
   'extension/dist/extension.js',
@@ -9,6 +10,8 @@ const required = new Set([
   'extension/dist/webview.css',
   'extension/dist/THIRD_PARTY_LICENSES.txt',
   'extension/bridge/lhp_bridge.py',
+  'extension/bridge/lhp_inspection.py',
+  'extension/media/lhp-mark.svg',
   'extension/media/icon.png',
   'extension/media/activity.svg',
   'extension/LICENSE.txt',
@@ -38,7 +41,7 @@ await new Promise((resolve, reject) => {
     }
     if (
       name.startsWith('extension/') &&
-      !/^extension\/(dist\/|bridge\/lhp_bridge\.py$|media\/|package\.json$|README\.md$|LICENSE(?:\.txt)?$|NOTICE$|THIRD_PARTY_NOTICES\.md$|CHANGELOG\.md$)/i.test(
+      !/^extension\/(dist\/|bridge\/(?:lhp_bridge|lhp_inspection)\.py$|media\/|package\.json$|README\.md$|LICENSE(?:\.txt)?$|NOTICE$|THIRD_PARTY_NOTICES\.md$|CHANGELOG\.md$)/i.test(
         name,
       )
     ) {

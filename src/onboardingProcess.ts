@@ -44,13 +44,14 @@ export async function bootstrapProject(
   bundle: boolean,
   interpreter: string,
   bridge: Pick<BridgeClient, 'call'>,
+  sampleMode = false,
 ): Promise<void> {
   await assertEmptyTarget(directory);
   const response = await bridge.call({
     operation: 'init',
     interpreter,
     projectRoot: directory,
-    options: { name, bundle },
+    options: { name, bundle, sampleMode },
   });
   if (!isRecord(response) || response.success !== true) {
     throw new Error(

@@ -13,9 +13,22 @@ export async function activate(context: vscode.ExtensionContext): Promise<Extens
   const controller = new Controller(context, (snapshot, root) => languages.update(root, snapshot));
   const sidebar = new ProjectSidebar(controller);
   context.subscriptions.push(controller, languages, sidebar);
+  const syncLanguageContext = () => {
+    languages.setProjectRoots(controller.projects.map((project) => project.root));
+    const project = controller.project;
+    if (!project) return;
+    languages.updateEnvironment(project.root, controller.environment(project));
+    if (controller.catalog) languages.updateCatalog(project.root, controller.catalog);
+    else languages.clearCatalog(project.root);
+    if (controller.resourceIndex) languages.updateInventory(project.root, controller.resourceIndex);
+  };
+  context.subscriptions.push(controller.onDidChangeState(syncLanguageContext));
   const commands: Record<string, () => Promise<unknown> | void> = {
     openDesigner: () => controller.show(),
-    refresh: () => controller.refresh(),
+    refresh: async () => {
+      await controller.refreshResources();
+      await controller.refresh();
+    },
     selectProject: () => controller.selectProject(),
     selectInterpreter: () => controller.interpreter(),
     setupEnvironment: () => controller.interpreter(true),

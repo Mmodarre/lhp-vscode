@@ -2,6 +2,7 @@ import type { OperationStatus, ProjectSummary } from '../../../src/shared/protoc
 import type { RequestBody } from '../host';
 
 interface NoProjectScreenProps {
+  logoUri?: string;
   projects: ProjectSummary[];
   trusted: boolean;
   pending: string | undefined;
@@ -12,6 +13,7 @@ interface NoProjectScreenProps {
 }
 
 export function NoProjectScreen({
+  logoUri,
   projects,
   trusted,
   pending,
@@ -24,15 +26,17 @@ export function NoProjectScreen({
     <div className="app">
       <header className="topbar">
         <div className="brand">
-          <span className="brand-mark">LHP</span> Lakehouse Plumber
+          {logoUri && <img className="brand-logo" src={logoUri} alt="" width="29" height="29" />}
+          Lakehouse Plumber
         </div>
       </header>
-      <div className="empty">
+      <div className="empty start-screen">
+        <p className="eyebrow">Get started</p>
         <h2>{projects.length ? 'Choose an LHP project' : 'Start an LHP project'}</h2>
         <p>
           {projects.length
-            ? 'Select a workspace project to inspect its pipelines and flowgroups.'
-            : 'No project was found in this workspace. Initialize one in a trusted folder to begin.'}
+            ? 'Select a workspace project to inspect its pipelines, resources and declared data.'
+            : 'Open a folder containing lhp.yaml, or initialize a project in a trusted workspace. The guide can create a starter or optional TPC-H example.'}
         </p>
         {!trusted && (
           <div className="notice warn">Trust this workspace before project setup or editing.</div>
@@ -48,14 +52,21 @@ export function NoProjectScreen({
         ))}
         <div className="inspector-actions">
           <button
-            className="button"
+            className="button accent"
             onClick={() => send({ type: 'createProject' }, true)}
             disabled={!trusted || !!pending}
           >
-            Initialize project
+            Create project…
           </button>
-          <button className="button secondary" onClick={() => send({ type: 'selectInterpreter' })}>
-            Select Python interpreter
+          <button
+            className="button secondary"
+            onClick={() => send({ type: 'selectInterpreter' })}
+            disabled={!trusted || !!pending}
+          >
+            Choose Python
+          </button>
+          <button className="button quiet" onClick={() => send({ type: 'showHelp' })}>
+            Get Started guide
           </button>
         </div>
         {status?.message && <p role="status">{status.message}</p>}

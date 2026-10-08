@@ -1,4 +1,4 @@
-import type { HostMessage, WebviewRequest } from '../../src/shared/protocol';
+import type { HostMessage, ProjectDatasetIndex, WebviewRequest } from '../../src/shared/protocol';
 import { PROTOCOL_VERSION } from '../../src/shared/protocol';
 import { demoSnapshot } from './demoFixture';
 
@@ -6,6 +6,81 @@ const state = new URLSearchParams(location.search).get('state');
 const variant = state === 'stale' || state === 'runtime' ? state : 'normal';
 const empty = state === 'empty';
 let snapshot = demoSnapshot(variant);
+snapshot = {
+  ...snapshot,
+  pipelineEdges: [
+    {
+      id: 'demo-pipeline-edge',
+      source: 'bronze_load',
+      target: 'silver_curate',
+      dataset: 'orders',
+      editable: false,
+    },
+  ],
+};
+const demoDatasets: ProjectDatasetIndex = {
+  projectId: snapshot.context.project.id,
+  revision: snapshot.revision,
+  environment: snapshot.context.environment,
+  stale: false,
+  warnings: [],
+  datasets: [
+    {
+      id: 'external:orders',
+      name: 'landing.orders',
+      kind: 'external',
+      producers: [],
+      consumers: [
+        {
+          label: 'load_orders',
+          source: {
+            path: 'pipelines/bronze/orders_bronze.yaml',
+            range: { start: { line: 7, character: 2 }, end: { line: 8, character: 0 } },
+          },
+          pipeline: 'bronze_load',
+          flowgroupId: 'orders',
+          actionId: 'orders:load',
+        },
+      ],
+      upstream: [],
+      downstream: ['view:orders'],
+    },
+    {
+      id: 'view:orders',
+      name: 'v_orders_raw',
+      kind: 'table',
+      producers: [
+        {
+          label: 'load_orders',
+          source: { path: 'pipelines/bronze/orders_bronze.yaml' },
+          pipeline: 'bronze_load',
+          flowgroupId: 'orders',
+          actionId: 'orders:load',
+        },
+      ],
+      consumers: [
+        {
+          label: 'cleanse_orders',
+          source: { path: 'pipelines/bronze/orders_bronze.yaml' },
+          pipeline: 'bronze_load',
+          flowgroupId: 'orders',
+          actionId: 'orders:cleanse',
+        },
+      ],
+      upstream: ['external:orders'],
+      downstream: [],
+    },
+  ],
+  edges: [
+    {
+      id: 'landing-to-raw',
+      source: 'external:orders',
+      target: 'view:orders',
+      dataset: 'orders',
+      editable: false,
+    },
+  ],
+};
 if (state === 'runtime')
   snapshot = {
     ...snapshot,
@@ -61,6 +136,7 @@ if (state === 'large') {
 }
 const emit = (message: HostMessage) =>
   window.dispatchEvent(new MessageEvent('message', { data: message }));
+const logoUri = new URL('../media/lhp-mark.svg', location.href).toString();
 
 window.acquireVsCodeApi = () => ({
   getState: () => undefined,
@@ -76,6 +152,7 @@ window.acquireVsCodeApi = () => ({
                   protocolVersion: PROTOCOL_VERSION,
                   projects: [],
                   trusted: true,
+                  logoUri,
                 }
               : {
                   type: 'bootstrap',
@@ -83,6 +160,23 @@ window.acquireVsCodeApi = () => ({
                   projects: [snapshot.context.project],
                   snapshot,
                   trusted: true,
+                  logoUri,
+                  datasets: demoDatasets,
+                  selection:
+                    state === 'project'
+                      ? {
+                          projectId: snapshot.context.project.id,
+                          revision: snapshot.revision,
+                          view: 'project',
+                        }
+                      : state === 'data'
+                        ? {
+                            projectId: snapshot.context.project.id,
+                            revision: snapshot.revision,
+                            view: 'dataset',
+                            datasetId: 'view:orders',
+                          }
+                        : undefined,
                 },
           ),
         0,
@@ -117,6 +211,7 @@ window.acquireVsCodeApi = () => ({
         },
       });
     }
+    if (message.type === 'loadData') emit({ type: 'datasets', datasets: demoDatasets });
     setTimeout(
       () =>
         emit({

@@ -2,8 +2,32 @@ import * as path from 'node:path';
 import { realpath, lstat } from 'node:fs/promises';
 
 export function ignoredProjectPath(relative: string): boolean {
-  return /(?:^|\/)(?:node_modules|\.venv|venv|\.git|generated|\.tmp|\.lhp|\.databricks|\.ruff_cache|\.pytest_cache|__pycache__)\//.test(
-    relative,
+  return ignoredInventoryPath(relative) || relative.startsWith('generated/');
+}
+
+/** Shared eligibility for physical discovery and incremental source events. */
+export function ignoredInventoryPath(relative: string): boolean {
+  const parts = relative.split('/');
+  return (
+    parts.some((part) =>
+      [
+        'node_modules',
+        '.venv',
+        'venv',
+        '.git',
+        '.tmp',
+        '.superdesign',
+        '.lhp',
+        '.databricks',
+        '.ruff_cache',
+        '.pytest_cache',
+        '.mypy_cache',
+        '__pycache__',
+        'dist',
+      ].includes(part),
+    ) ||
+    (parts.at(-1)?.startsWith('.env') ?? false) ||
+    parts.at(-1) === '.DS_Store'
   );
 }
 

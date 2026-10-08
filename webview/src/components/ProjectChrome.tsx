@@ -9,6 +9,8 @@ import type { RequestBody } from '../host';
 import { ProjectNotices } from './ProjectNotices';
 
 interface ProjectChromeProps {
+  logoUri?: string;
+  mode: string;
   snapshot: ProjectSnapshot;
   projects: ProjectSummary[];
   status: OperationStatus | undefined;
@@ -20,13 +22,19 @@ interface ProjectChromeProps {
   message: string;
   error: string;
   showInspector: boolean;
+  canEdit: boolean;
   setShowInspector: Dispatch<SetStateAction<boolean>>;
   setPreview: Dispatch<SetStateAction<PreviewResult | undefined>>;
   selectProject: (id: string) => void;
+  onProjectMap: () => void;
+  onData: () => void;
+  onCreate: (mode: 'bronze' | 'template' | 'blueprint' | 'new-flowgroup') => void;
   send: (body: RequestBody, expectUpdate?: boolean) => string;
 }
 
 export function ProjectChrome({
+  logoUri,
+  mode,
   snapshot,
   projects,
   status,
@@ -38,9 +46,13 @@ export function ProjectChrome({
   message,
   error,
   showInspector,
+  canEdit,
   setShowInspector,
   setPreview,
   selectProject,
+  onProjectMap,
+  onData,
+  onCreate,
   send,
 }: ProjectChromeProps) {
   const running = !!status?.running;
@@ -52,11 +64,14 @@ export function ProjectChrome({
     <>
       <header className="topbar">
         <div className="brand">
-          <span className="brand-mark">LHP</span>
+          {logoUri && <img className="brand-logo" src={logoUri} alt="" width="29" height="29" />}
           <span>Lakehouse Plumber</span>
         </div>
-        <span className="topbar-meta" title={snapshot.context.project.rootLabel}>
-          {snapshot.context.project.name} · {snapshot.context.project.rootLabel}
+        <span
+          className="topbar-meta"
+          title={`${snapshot.context.project.name} · ${snapshot.context.project.rootLabel}`}
+        >
+          <span aria-hidden="true">/</span> {snapshot.context.project.name}
         </span>
         <span className="topbar-spacer" />
         {refreshState === 'loading' ? (
@@ -109,7 +124,7 @@ export function ProjectChrome({
               setPreview(undefined);
               send({ type: 'selectEnvironment', environment: event.target.value }, true);
             }}
-            disabled={running || !!pending}
+            disabled={!snapshot.context.trusted || running || !!pending}
           >
             {snapshot.context.environments.map((env) => (
               <option key={env} value={env}>
@@ -119,30 +134,65 @@ export function ProjectChrome({
           </select>
           <button
             className="button quiet small"
+            onClick={onProjectMap}
+            aria-pressed={mode === 'project'}
+          >
+            Project map
+          </button>
+          <button className="button quiet small" onClick={onData} aria-pressed={mode === 'data'}>
+            Data lineage
+          </button>
+          <label className="sr-only" htmlFor="create-choice">
+            Create
+          </label>
+          <select
+            id="create-choice"
+            className="select create-choice"
+            value=""
+            onChange={(event) => {
+              const value = event.target.value;
+              if (
+                value === 'bronze' ||
+                value === 'new-flowgroup' ||
+                value === 'template' ||
+                value === 'blueprint'
+              )
+                onCreate(value);
+            }}
+            disabled={!canEdit}
+          >
+            <option value="">+ Create…</option>
+            <option value="bronze">Files to bronze</option>
+            <option value="new-flowgroup">Flowgroup / pipeline</option>
+            <option value="template">Template instance</option>
+            <option value="blueprint">Blueprint instance</option>
+          </select>
+        </div>
+        <span className="toolbar-spacer" />
+        <div className="toolbar-group">
+          <button
+            className="button quiet small"
             onClick={() => send({ type: 'refresh' }, true)}
             disabled={running}
           >
             Refresh
           </button>
-        </div>
-        <span className="toolbar-spacer" />
-        <div className="toolbar-group">
           <button
-            className="button secondary small"
+            className="button accent-secondary small"
             onClick={() => send({ type: 'undo' }, true)}
             disabled={!canUndo}
           >
             Undo
           </button>
           <button
-            className="button secondary small"
+            className="button accent-secondary small"
             onClick={() => send({ type: 'redo' }, true)}
             disabled={!canUndo}
           >
             Redo
           </button>
           <button
-            className="button secondary small"
+            className="button accent small"
             onClick={() => send({ type: 'validate' }, true)}
             disabled={
               !snapshot.context.trusted ||
@@ -155,7 +205,7 @@ export function ProjectChrome({
             Validate
           </button>
           <button
-            className="button secondary small"
+            className="button accent-secondary small"
             onClick={() => send({ type: 'preview' }, true)}
             disabled={
               !snapshot.context.trusted ||
@@ -168,7 +218,7 @@ export function ProjectChrome({
             Preview output
           </button>
           <button
-            className="button small"
+            className="button accent-secondary small"
             onClick={() => send({ type: 'generate' }, true)}
             disabled={!canGenerate}
           >
@@ -179,6 +229,26 @@ export function ProjectChrome({
               Cancel
             </button>
           )}
+          <details className="toolbar-menu">
+            <summary className="button quiet small" aria-label="More project commands">
+              More ▾
+            </summary>
+            <div className="toolbar-menu-items">
+              <button
+                onClick={() => send({ type: 'selectInterpreter' })}
+                disabled={!snapshot.context.trusted || running || !!pending}
+              >
+                Choose Python interpreter
+              </button>
+              <button
+                onClick={() => send({ type: 'databricks' })}
+                disabled={!snapshot.context.trusted || running || !!pending}
+              >
+                Databricks handoff
+              </button>
+              <button onClick={() => send({ type: 'showHelp' })}>Get Started and help</button>
+            </div>
+          </details>
         </div>
       </div>
       {showRuntimeHelp && (
@@ -195,12 +265,14 @@ export function ProjectChrome({
             <button
               className="button secondary small"
               onClick={() => send({ type: 'selectInterpreter' })}
+              disabled={!snapshot.context.trusted || running || !!pending}
             >
               Choose interpreter
             </button>
             <button
               className="button secondary small"
               onClick={() => send({ type: 'setupEnvironment' }, true)}
+              disabled={!snapshot.context.trusted || running || !!pending}
             >
               Set up environment
             </button>

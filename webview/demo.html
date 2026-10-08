@@ -7,7 +7,7 @@
     <link rel="stylesheet" href="../.tmp/webview-demo.css" />
     <style>
       :root {
-        --vscode-font-family: 'Work Sans', sans-serif;
+        --vscode-font-family: system-ui, -apple-system, 'Segoe UI', sans-serif;
         --vscode-font-size: 13px;
         --vscode-editor-background: #1e1e1e;
         --vscode-foreground: #d4d4d4;
@@ -34,6 +34,7 @@
   <body>
     <nav class="demo-controls" aria-label="Development fixture variants">
       Test-only fixture: <a href="?state=normal">normal</a>
+      <a href="?state=project">project map</a> <a href="?state=data">declared data</a>
       <a href="?state=stale">invalid YAML / stale</a> <a href="?state=runtime">missing runtime</a>
       <a href="?state=failed">refresh failure</a>
       <a href="?state=notices">many notices</a> <a href="?state=large">large graph</a>

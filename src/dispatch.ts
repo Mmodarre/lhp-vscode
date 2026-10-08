@@ -1,7 +1,7 @@
 import * as vscode from 'vscode';
 import type { Controller } from './controller';
 import { applyMutation, openSource } from './documents';
-import { scaffold } from './projectOperations';
+import { scaffold, createFlowgroup } from './projectOperations';
 import type { WebviewRequest } from './shared/protocol';
 
 export async function dispatch(host: Controller, request: WebviewRequest): Promise<void> {
@@ -13,6 +13,7 @@ export async function dispatch(host: Controller, request: WebviewRequest): Promi
     'selectInterpreter',
     'setupEnvironment',
     'cancel',
+    'showHelp',
   ];
   if (['undo', 'redo', 'openSource'].includes(request.type)) {
     if (request.context?.projectId !== host.project?.summary.id)
@@ -47,12 +48,21 @@ export async function dispatch(host: Controller, request: WebviewRequest): Promi
       break;
     case 'openSource':
       await openSource(
-        host.requireProject().root,
+        host.readProject().root,
         host.snapshot?.stale ? { path: request.source.path } : request.source,
       );
       break;
     case 'showPreviewFile':
       await host.previews.show(request.path);
+      break;
+    case 'loadData':
+      await host.loadData();
+      break;
+    case 'showHelp':
+      await host.showHelp();
+      break;
+    case 'createFlowgroup':
+      await createFlowgroup(host, request.values);
       break;
     case 'databricks':
       await host.databricks();
@@ -75,6 +85,9 @@ export async function dispatch(host: Controller, request: WebviewRequest): Promi
         host.snapshot!,
         request.mutation,
         request.documentVersions,
+        host.projects
+          .filter((candidate) => candidate !== project)
+          .map((candidate) => candidate.root),
       );
       clearTimeout(host.timer);
       await host.refresh();

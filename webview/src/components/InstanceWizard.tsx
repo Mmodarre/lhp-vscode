@@ -10,6 +10,7 @@ import { Fields } from './Fields';
 
 export function InstanceWizard({
   kind,
+  initialDefinition,
   catalog,
   pipelines,
   busy,
@@ -18,6 +19,7 @@ export function InstanceWizard({
   onOpen,
 }: {
   kind: 'template' | 'blueprint';
+  initialDefinition?: string;
   catalog: EditorCatalog;
   pipelines: string[];
   busy: boolean;
@@ -26,7 +28,9 @@ export function InstanceWizard({
   onOpen: (source: SourceRef) => void;
 }) {
   const definitions = kind === 'template' ? catalog.templates : catalog.blueprints;
-  const [definition, setDefinition] = useState(definitions[0]?.name ?? '');
+  const [definition, setDefinition] = useState(
+    definitions.find((item) => item.name === initialDefinition)?.name ?? definitions[0]?.name ?? '',
+  );
   const [name, setName] = useState('');
   const [pipeline, setPipeline] = useState(pipelines[0] ?? '');
   const [targetPath, setTargetPath] = useState('');
@@ -103,6 +107,7 @@ export function InstanceWizard({
             <select
               className="select"
               id="instance-definition"
+              autoFocus
               value={definition}
               onChange={(event) => {
                 setDefinition(event.target.value);

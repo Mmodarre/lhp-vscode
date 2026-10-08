@@ -10,6 +10,18 @@ export type JsonValue =
   | JsonValue[]
   | { [key: string]: JsonValue };
 export type JsonObject = { [key: string]: JsonValue };
+export type {
+  ProjectResourceIndex,
+  ProjectResource,
+  ResourceKind,
+  ResourceConsumer,
+  ProjectDatasetIndex,
+  DatasetEntry,
+  DatasetSource,
+  SubstitutionToken,
+  InspectionKind,
+  InspectionRequest,
+} from './projectModel';
 export type YamlPath = (string | number)[];
 export interface Position {
   line: number;
@@ -159,6 +171,9 @@ export interface ProjectSnapshot {
   flowgroups: FlowgroupDetail[];
   /** Cross-flowgroup data dependencies; source/target are FlowgroupSummary.id. */
   flowgroupEdges: GraphEdge[];
+  /** Canonical project graph, with pipeline names as source/target identities. */
+  pipelineEdges?: GraphEdge[];
+  projectMetadata?: JsonObject;
   documents: DocumentState[];
   catalog: EditorCatalog;
   diagnostics: EditorDiagnostic[];
@@ -181,7 +196,16 @@ export interface PreviewResult {
   documentVersions: Record<string, number>;
 }
 export interface OperationStatus {
-  operation: 'snapshot' | 'validate' | 'preview' | 'generate' | 'setup' | 'create';
+  operation:
+    | 'snapshot'
+    | 'validate'
+    | 'preview'
+    | 'generate'
+    | 'setup'
+    | 'create'
+    | 'inspect'
+    | 'catalog'
+    | 'data';
   running: boolean;
   message: string;
   success?: boolean;
@@ -223,10 +247,17 @@ type WebviewRequestBody =
   | { type: 'setupEnvironment'; requestId: string }
   | { type: 'createProject'; requestId: string }
   | { type: 'createBronze'; requestId: string; values: BronzeRequest }
+  | {
+      type: 'createFlowgroup';
+      requestId: string;
+      values: { name: string; pipeline: string; targetPath: string };
+    }
   | { type: 'createInstance'; requestId: string; values: InstanceRequest }
   | { type: 'cancel'; requestId: string }
   | { type: 'databricks'; requestId: string }
   | { type: 'showPreviewFile'; requestId: string; path: string }
+  | { type: 'loadData'; requestId: string }
+  | { type: 'showHelp'; requestId: string }
   | { type: 'undo'; requestId: string }
   | { type: 'redo'; requestId: string };
 
@@ -253,6 +284,8 @@ export interface DesignerSelection {
   pipeline?: string;
   flowgroupId?: string;
   actionId?: string;
+  view?: 'project' | 'pipeline' | 'flowgroup' | 'dataset';
+  datasetId?: string;
 }
 export type HostMessage =
   | {
@@ -262,8 +295,18 @@ export type HostMessage =
       snapshot?: ProjectSnapshot;
       trusted: boolean;
       selection?: DesignerSelection;
+      logoUri?: string;
+      datasets?: import('./projectModel').ProjectDatasetIndex;
     }
   | { type: 'select'; selection: DesignerSelection }
+  | { type: 'datasets'; datasets: import('./projectModel').ProjectDatasetIndex }
+  | {
+      type: 'guide';
+      projectId: string;
+      revision: number;
+      guide: 'bronze' | 'template' | 'blueprint' | 'flowgroup';
+      definition?: string;
+    }
   | { type: 'snapshot'; snapshot: ProjectSnapshot }
   | { type: 'result'; requestId: string; success: boolean; message?: string }
   | { type: 'error'; requestId?: string; code: string; message: string; recoverable: boolean }
@@ -285,10 +328,13 @@ export const WEBVIEW_REQUEST_TYPES = [
   'setupEnvironment',
   'createProject',
   'createBronze',
+  'createFlowgroup',
   'createInstance',
   'cancel',
   'databricks',
   'showPreviewFile',
+  'loadData',
+  'showHelp',
   'undo',
   'redo',
 ] as const;
@@ -303,7 +349,9 @@ export type BridgeOperation =
   | 'preview'
   | 'generate'
   | 'init'
-  | 'scaffold';
+  | 'scaffold'
+  | 'inspect'
+  | 'data';
 export interface DocumentOverlay {
   path: string;
   text: string;

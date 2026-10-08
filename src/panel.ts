@@ -9,6 +9,11 @@ export class DesignerPanel implements vscode.Disposable {
   get isReady(): boolean {
     return !!this.panel && this.ready;
   }
+  get logoUri(): string | undefined {
+    return this.panel?.webview
+      .asWebviewUri(vscode.Uri.joinPath(this.extensionUri, 'media', 'lhp-mark.svg'))
+      .toString();
+  }
   markReady(): void {
     if (this.panel) this.ready = true;
   }
@@ -28,7 +33,10 @@ export class DesignerPanel implements vscode.Disposable {
       {
         enableScripts: true,
         retainContextWhenHidden: true,
-        localResourceRoots: [vscode.Uri.joinPath(this.extensionUri, 'dist')],
+        localResourceRoots: [
+          vscode.Uri.joinPath(this.extensionUri, 'dist'),
+          vscode.Uri.joinPath(this.extensionUri, 'media'),
+        ],
       },
     );
     this.panel = panel;

@@ -193,7 +193,9 @@ describe('inspector drafts across document snapshots', () => {
         onShowActions={vi.fn()}
       />,
     );
-    fireEvent.click(screen.getByRole('button', { name: 'Open project configuration' }));
+    fireEvent.click(
+      screen.getByRole('button', { name: 'Open project configuration beside graph' }),
+    );
     expect(open).toHaveBeenCalledTimes(2);
     expect(open).toHaveBeenLastCalledWith(projectSource);
     expect(screen.queryByText(/Inherited actions belong to the definition/)).toBeNull();

@@ -1,9 +1,7 @@
 import * as vscode from 'vscode';
 import * as path from 'node:path';
-import { BridgeClient, BridgeError, type BridgeCall } from './bridgeClient';
-import { text } from './catalog';
+import { BridgeClient, type BridgeCall } from './bridgeClient';
 import { operate, databricks } from './projectOperations';
-import { projectOverlays } from './documents';
 import { Problems } from './diagnostics';
 import { createProject, selectInterpreter, setupEnvironment } from './onboarding';
 import { dispatch } from './dispatch';
@@ -12,6 +10,13 @@ import { ignoredProjectPath, relativePath } from './paths';
 import { PreviewDocuments } from './preview';
 import { discoverProjects, type Project } from './projects';
 import { refreshProject } from './refresh';
+import { OperationQueue } from './operationQueue';
+import { callBridge } from './projectCalls';
+import { ProjectWorkspace } from './projectWorkspace';
+import { InspectionDocuments } from './inspectionDocuments';
+import * as resourceActions from './resourceActions';
+import * as inspectionActions from './projectInspection';
+import type { InspectionRequest } from './shared/protocol';
 import {
   PROTOCOL_VERSION,
   type JsonObject,
@@ -28,6 +33,20 @@ export class Controller implements vscode.Disposable {
   readonly bridge: BridgeClient;
   readonly previews = new PreviewDocuments();
   readonly problems = new Problems();
+  readonly workspace = new ProjectWorkspace(this);
+  readonly inspections = new InspectionDocuments();
+  get resourceIndex() {
+    return this.workspace.index;
+  }
+  get catalog() {
+    return this.workspace.catalog;
+  }
+  get runtime() {
+    return this.workspace.runtime;
+  }
+  get datasets() {
+    return this.workspace.datasets;
+  }
   projects: Project[] = [];
   project?: Project;
   snapshot?: ProjectSnapshot;
@@ -35,16 +54,17 @@ export class Controller implements vscode.Disposable {
   private readonly stateChanged = new vscode.EventEmitter<void>();
   readonly onDidChangeState = this.stateChanged.event;
   private designerSelection?: DesignerSelection;
+  private pendingGuide?: {
+    projectId: string;
+    revision: number;
+    guide: 'bronze' | 'template' | 'blueprint' | 'flowgroup';
+    definition?: string;
+  };
   status?: OperationStatus;
   private discovery = 0;
-  private operation?: {
-    controller: AbortController;
-    operation: OperationStatus['operation'];
-    completion: Promise<void>;
-  };
-  private shutdownFailed = false;
+  private readonly operations = new OperationQueue((status) => this.publishStatus(status));
   get isOperating(): boolean {
-    return !!this.operation;
+    return this.operations.running;
   }
   timer?: ReturnType<typeof setTimeout>;
   lastEdited?: vscode.Uri;
@@ -77,8 +97,9 @@ export class Controller implements vscode.Disposable {
         void this.refresh().catch((error) => this.report(error));
       }),
       vscode.workspace.registerTextDocumentContentProvider('lhp-preview', this.previews),
+      vscode.workspace.registerTextDocumentContentProvider('lhp-inspection', this.inspections),
     );
-    const watcher = vscode.workspace.createFileSystemWatcher('**/*.{yaml,yml,sql,py,json}');
+    const watcher = vscode.workspace.createFileSystemWatcher('**/*');
     this.subscriptions.push(
       watcher,
       watcher.onDidCreate((uri) => this.fileTopologyChanged(uri)),
@@ -92,7 +113,16 @@ export class Controller implements vscode.Disposable {
     if (relative?.endsWith('lhp.yaml') && !ignoredProjectPath(relative)) {
       this.invalidate();
       void this.discover().catch((error) => this.report(error));
-    } else this.sourceChanged(uri);
+    } else {
+      const local = this.project && relativePath(this.project.root, uri.fsPath);
+      if (
+        local &&
+        this.ownsUri(uri) &&
+        (!ignoredProjectPath(local) || local.startsWith('generated/'))
+      )
+        this.workspace.scheduleScan();
+      this.sourceChanged(uri);
+    }
   }
   private sourceChanged(uri: vscode.Uri, nativeDirtyEdit = false): void {
     if (uri.path.endsWith('/lhp.yaml') && !this.project) {
@@ -101,19 +131,27 @@ export class Controller implements vscode.Disposable {
     }
     // Generation owns disk writes (including bundle resources). Do not abort it
     // on its own watcher notifications; a user's dirty native edit still cancels.
-    if (this.operation?.operation === 'generate' && !nativeDirtyEdit) return;
+    if (this.operations.kind === 'generate' && !nativeDirtyEdit) return;
+    if (!this.ownsUri(uri)) return;
     const relative =
       this.project && uri.scheme === 'file'
         ? relativePath(this.project.root, uri.fsPath)
         : undefined;
-    if (!relative || ignoredProjectPath(relative)) return;
+    if (!relative) return;
+    if (relative.startsWith('generated/') || relative.startsWith('resources/lhp/')) {
+      this.workspace.scheduleScan();
+      return;
+    }
+    if (ignoredProjectPath(relative)) return;
+    this.workspace.sourceChanged(uri);
+    if (!/\.(?:ya?ml|sql|py|json|ddl)$/i.test(relative)) return;
     this.invalidate();
     if (this.snapshot) {
       this.snapshot = {
         ...this.snapshot,
         revision: this.epoch,
         stale: this.snapshot.flowgroups.length > 0,
-        notices: [],
+        notices: this.snapshot.notices,
         refreshState: 'loading',
         refreshError: undefined,
       };
@@ -121,6 +159,23 @@ export class Controller implements vscode.Disposable {
       this.stateChanged.fire();
     }
     clearTimeout(this.timer);
+    // Large graphs refresh explicitly: source browsing/completion remains cheap.
+    if ((this.snapshot?.flowgroups.length ?? 0) > 500) {
+      if (this.snapshot)
+        this.snapshot = {
+          ...this.snapshot,
+          refreshState: 'ready',
+          notices: [
+            ...new Set([
+              ...this.snapshot.notices,
+              'Source changed. Refresh the semantic graph when ready.',
+            ]),
+          ],
+        };
+      if (this.snapshot) this.panel.post({ type: 'snapshot', snapshot: this.snapshot });
+      this.notifyState();
+      return;
+    }
     this.timer = setTimeout(() => {
       void this.refresh()
         .then(async () => {
@@ -140,8 +195,28 @@ export class Controller implements vscode.Disposable {
   private invalidate(): void {
     this.epoch++;
     this.designerSelection = undefined;
-    this.operation?.controller.abort();
+    this.pendingGuide = undefined;
+    this.operations.cancel();
     this.previews.clear();
+    this.inspections.clear();
+    this.workspace.invalidate();
+  }
+  invalidateContext(): void {
+    this.invalidate();
+  }
+  notifyState(): void {
+    this.stateChanged.fire();
+  }
+  readProject(): Project {
+    if (!this.project) throw new Error('Open or create an LHP project first.');
+    return this.project;
+  }
+  ownsUri(uri: vscode.Uri): boolean {
+    if (uri.scheme !== 'file' || !this.project) return false;
+    const owner = this.projects
+      .filter((project) => !!relativePath(project.root, uri.fsPath))
+      .sort((a, b) => b.root.length - a.root.length)[0];
+    return owner?.summary.id === this.project.summary.id;
   }
   requireTrust(): void {
     if (!vscode.workspace.isTrusted)
@@ -149,8 +224,7 @@ export class Controller implements vscode.Disposable {
   }
   requireProject(): Project {
     this.requireTrust();
-    if (!this.project) throw new Error('Open or create an LHP project first.');
-    return this.project;
+    return this.readProject();
   }
   assertContext(request: WebviewRequest): void {
     if (
@@ -170,6 +244,8 @@ export class Controller implements vscode.Disposable {
       snapshot: this.snapshot,
       trusted: vscode.workspace.isTrusted,
       selection: this.designerSelection,
+      logoUri: this.panel.logoUri,
+      datasets: this.datasets,
     });
     this.stateChanged.fire();
   }
@@ -178,6 +254,8 @@ export class Controller implements vscode.Disposable {
     this.panel.markReady();
     this.bootstrap();
     this.designerSelection = undefined;
+    if (this.pendingGuide) this.panel.post({ type: 'guide', ...this.pendingGuide });
+    this.pendingGuide = undefined;
   }
   showSelection(selection: DesignerSelection): void {
     this.requireProject();
@@ -192,7 +270,7 @@ export class Controller implements vscode.Disposable {
       this.designerSelection = undefined;
     }
   }
-  private publishStatus(status: OperationStatus): void {
+  publishStatus(status: OperationStatus): void {
     this.status = status;
     this.panel.post({ type: 'status', status });
     this.stateChanged.fire();
@@ -212,8 +290,10 @@ export class Controller implements vscode.Disposable {
       this.invalidate();
       this.snapshot = undefined;
       this.problems.clear();
+      this.workspace.reset(this.project);
     }
     this.bootstrap();
+    await this.refreshResources();
     await this.refresh();
   }
   async show(): Promise<void> {
@@ -232,19 +312,15 @@ export class Controller implements vscode.Disposable {
         .get<string>('environment', 'dev')
     );
   }
-  private options(project: Project): JsonObject {
-    return {
-      includeTests: vscode.workspace
+  activePipelineConfig(project: Project): string {
+    return (
+      this.context.workspaceState.get<Record<string, string>>('lhp.pipelineConfigs', {})[
+        project.summary.id
+      ] ??
+      vscode.workspace
         .getConfiguration('lhp', vscode.Uri.file(project.root))
-        .get<boolean>('includeTestsInGeneration', false),
-      pipelineConfigPath:
-        this.context.workspaceState.get<Record<string, string>>('lhp.pipelineConfigs', {})[
-          project.summary.id
-        ] ??
-        vscode.workspace
-          .getConfiguration('lhp', vscode.Uri.file(project.root))
-          .get<string>('pipelineConfigPath', ''),
-    };
+        .get<string>('pipelineConfigPath', '')
+    );
   }
   async call(
     operation: BridgeCall['operation'],
@@ -253,97 +329,14 @@ export class Controller implements vscode.Disposable {
     signal: AbortSignal,
     options?: JsonObject,
   ): Promise<JsonValue> {
-    return this.bridge.call({
-      operation,
-      interpreter: runtime.interpreter,
-      projectRoot: project.root,
-      environment: this.environment(project),
-      signal,
-      documents: operation === 'generate' ? undefined : projectOverlays(project.root),
-      options: { ...this.options(project), ...options },
-      timeoutMs:
-        vscode.workspace.getConfiguration('lhp').get<number>('operationTimeoutSeconds', 180) * 1000,
-      onEvent: (event) => {
-        if (!signal.aborted)
-          this.publishStatus({
-            operation:
-              operation === 'scaffold'
-                ? 'create'
-                : operation === 'catalog' || operation === 'health' || operation === 'init'
-                  ? 'snapshot'
-                  : operation,
-            running: true,
-            message: text(event.message, text(event.kind)),
-          });
-      },
-    });
+    return callBridge(this, operation, project, runtime, signal, options);
   }
-  async run<T>(
+
+  run<T>(
     operation: OperationStatus['operation'],
     task: (signal: AbortSignal) => Promise<T>,
   ): Promise<T | undefined> {
-    if (this.shutdownFailed)
-      throw new Error(
-        'The previous Python process could not be stopped. Restart VS Code after stopping it before running another operation.',
-      );
-    while (this.operation) {
-      const previous = this.operation;
-      if (previous.operation === 'snapshot' || previous.controller.signal.aborted) {
-        previous.controller.abort();
-        await previous.completion;
-        if (this.shutdownFailed) throw new Error('The previous Python process did not close.');
-      } else
-        throw new Error('An LHP operation is already running. Cancel it before starting another.');
-    }
-    let complete!: () => void;
-    const completion = new Promise<void>((resolve) => {
-      complete = resolve;
-    });
-    const current = { controller: new AbortController(), operation, completion };
-    this.operation = current;
-    let failed = false;
-    this.publishStatus({ operation, running: true, message: `LHP ${operation}…` });
-    try {
-      return await vscode.window.withProgress(
-        {
-          location: vscode.ProgressLocation.Notification,
-          title: `LHP ${operation}`,
-          cancellable: true,
-        },
-        async (_progress, token) => {
-          const disposable = token.onCancellationRequested(() => current.controller.abort());
-          try {
-            return await task(current.controller.signal);
-          } finally {
-            disposable.dispose();
-          }
-        },
-      );
-    } catch (error) {
-      failed = !current.controller.signal.aborted;
-      if (error instanceof BridgeError && error.code === 'PROCESS_SHUTDOWN') {
-        this.shutdownFailed = true;
-        throw error;
-      }
-      if (!current.controller.signal.aborted) throw error;
-      return undefined;
-    } finally {
-      if (this.operation === current) {
-        this.operation = undefined;
-        this.publishStatus({
-          operation,
-          running: false,
-          message: this.shutdownFailed
-            ? 'Python shutdown failed.'
-            : current.controller.signal.aborted
-              ? 'Operation cancelled.'
-              : failed
-                ? 'Operation failed.'
-                : 'Ready.',
-        });
-      }
-      complete();
-    }
+    return this.operations.run(operation, task);
   }
   async refresh(): Promise<void> {
     if (!this.project || !vscode.workspace.isTrusted) {
@@ -355,6 +348,7 @@ export class Controller implements vscode.Disposable {
   async publishSnapshot(snapshot: ProjectSnapshot, project: Project, epoch: number): Promise<void> {
     if (epoch !== this.epoch || project !== this.project) return;
     this.snapshot = snapshot;
+    this.workspace.reconcile();
     this.panel.post({ type: 'snapshot', snapshot });
     this.stateChanged.fire();
     await this.problems.update(
@@ -383,17 +377,24 @@ export class Controller implements vscode.Disposable {
     this.project = chosen;
     this.snapshot = undefined;
     this.problems.clear();
+    this.workspace.reset(chosen);
     await this.context.workspaceState.update('lhp.activeProject', chosen.summary.id);
     this.bootstrap();
+    await this.refreshResources();
     await this.refresh();
   }
   async selectEnvironment(environment?: string): Promise<void> {
     const project = this.requireProject();
     const selected =
       environment ??
-      (await vscode.window.showQuickPick(this.snapshot?.context.environments ?? ['dev'], {
-        title: 'LHP environment',
-      }));
+      (await vscode.window.showQuickPick(
+        this.resourceIndex?.environments.length
+          ? this.resourceIndex.environments
+          : (this.snapshot?.context.environments ?? ['dev']),
+        {
+          title: 'LHP environment',
+        },
+      ));
     if (!selected) return;
     if (!/^[A-Za-z0-9][A-Za-z0-9_.-]*$/.test(selected) || selected.includes('..'))
       throw new Error('Invalid environment name.');
@@ -442,11 +443,60 @@ export class Controller implements vscode.Disposable {
   async databricks(): Promise<void> {
     await databricks(this);
   }
+  refreshResources(): Promise<void> {
+    return this.workspace.refresh();
+  }
+  selectPipelineConfig(): Promise<void> {
+    return resourceActions.selectPipelineConfig(this);
+  }
+  openResource(id: string): Promise<void> {
+    return resourceActions.openResource(this, id);
+  }
+  findResource(): Promise<void> {
+    return resourceActions.findResource(this);
+  }
+  findConsumers(id: string): Promise<void> {
+    return resourceActions.findConsumers(this, id);
+  }
+  findAuthoringSource(id: string): Promise<void> {
+    return resourceActions.findAuthoringSource(this, id);
+  }
+  inspectResource(request: InspectionRequest): Promise<void> {
+    return inspectionActions.inspectResource(this, request);
+  }
+  loadData(): Promise<void> {
+    return inspectionActions.loadData(this);
+  }
+  compareGenerated(id: string): Promise<void> {
+    return inspectionActions.compareGenerated(this, id);
+  }
+  async showHelp(): Promise<void> {
+    await vscode.commands.executeCommand(
+      'workbench.action.openWalkthrough',
+      'Mmodarre.lhp-vscode#lhp.getStarted',
+      false,
+    );
+  }
+  showGuide(guide: 'bronze' | 'template' | 'blueprint' | 'flowgroup', definition?: string): void {
+    this.requireProject();
+    this.pendingGuide = {
+      projectId: this.readProject().summary.id,
+      revision: this.epoch,
+      guide,
+      definition,
+    };
+    this.panel.show();
+    this.bootstrap();
+    if (this.panel.isReady) {
+      this.panel.post({ type: 'guide', ...this.pendingGuide });
+      this.pendingGuide = undefined;
+    }
+  }
   async receive(request: WebviewRequest): Promise<void> {
     await dispatch(this, request);
   }
   cancel(): void {
-    this.operation?.controller.abort();
+    this.operations.cancel();
   }
   report(error: unknown): void {
     this.panel.error(error);
@@ -461,6 +511,8 @@ export class Controller implements vscode.Disposable {
     this.panel.dispose();
     this.problems.dispose();
     this.previews.dispose();
+    this.workspace.dispose();
+    this.inspections.dispose();
     this.output.dispose();
     this.stateChanged.dispose();
     for (const disposable of this.subscriptions) disposable.dispose();
