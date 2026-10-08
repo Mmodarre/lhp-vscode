@@ -6,7 +6,7 @@
 - [x] Publish current runtime health independently; distinguish loading, cancellation, transport failure and real source diagnostics.
 - [x] Collapse long notices and virtualize large graph views; verify synthetic 84-notice/4,017-flowgroup layouts.
 - [x] Run actual read-only performance-project refresh in VS Code: 4,017 flowgroups, 18,766 actions, 17,961 action edges and 2,813 document versions.
-- [ ] Complete patch desktop CI and audit/deliver `lhp-vscode-0.1.1.vsix`.
+- [x] Complete patch desktop CI and audit/deliver `lhp-vscode-0.1.1.vsix`.
 
 ## Repository and shared contract
 - [x] Confirm new local and public repository names do not already exist.
@@ -46,6 +46,6 @@
 
 Core E2E tests/fixtures/baselines: unchanged; any change requires user approval.
 
-Verified runtime revision: `4ff6ec54608cb5f93f5734ee49dd403c90929d52`. Both the [push matrix](https://github.com/Mmodarre/lhp-vscode/actions/runs/37713497951) and [PR matrix](https://github.com/Mmodarre/lhp-vscode/actions/runs/37713501894) passed on Linux, macOS and Windows on 8 October 2026. Each platform passed typecheck, lint, formatting, build, 31 tests with no skips, three real Python bridge tests, actual VS Code 1.106.0/Red Hat YAML 1.24.0 integration and the production dependency audit (zero vulnerabilities). Native integration includes undo/redo, blueprint parameters, preview expiry, nested-project discovery and bundle generation. Local Linux ARM64 host integration also passed.
+Verified runtime revision: `8bea221e441c2f587847f01830168f32a9a9e733`. Both the [push matrix](https://github.com/Mmodarre/lhp-vscode/actions/runs/37718088291) and [PR matrix](https://github.com/Mmodarre/lhp-vscode/actions/runs/37718092308) passed on Linux, macOS and Windows on 8 October 2026. Each platform passed typecheck, lint, formatting, build, 39 tests with no skips, six Python bridge tests (including three real lifecycle/scaffold/boundary tests), actual VS Code 1.106.0/Red Hat YAML 1.24.0 integration and the production dependency audit (zero vulnerabilities). Native integration includes undo/redo, blueprint parameters, preview expiry, nested-project discovery and bundle generation. Local Linux ARM64 host integration also passed.
 
-The delivered VSIX is the audited Linux push-build artifact, with 17 allowlisted files and 224,660 bytes. SHA256: `9df3b0dcfeaa572846fc8dc132ec175f523807719899ea719a5b668289eb4f39`. Its README links use the exact source revision. [Extension draft PR #1](https://github.com/Mmodarre/lhp-vscode/pull/1) remains unmerged and there is no Marketplace publication. [Core PR #290](https://github.com/Mmodarre/Lakehouse_Plumber/pull/290) was merged upstream by the time of final verification; the extension still pins the reviewed core commit above. Documentation-only delivery updates follow the verified runtime revision.
+The delivered VSIX is the audited Linux push-build artifact, with 17 allowlisted files and 227,898 bytes. SHA256: `323fc36e5762a98de336f4660f6f6cc98e34d48a87f795757e39f967e572207c`. Its README links use the exact source revision. [Extension draft PR #1](https://github.com/Mmodarre/lhp-vscode/pull/1) remains unmerged and there is no Marketplace publication. [Core PR #290](https://github.com/Mmodarre/Lakehouse_Plumber/pull/290) was merged upstream by the time of final verification; the extension still pins the reviewed core commit above. Documentation-only delivery updates follow the verified runtime revision.
