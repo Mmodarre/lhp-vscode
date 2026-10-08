@@ -1,6 +1,6 @@
 # LHP VS Code implementation plan
 
-Status: implementation complete; final delivery and desktop CI verification in progress. Delivery: installable VSIX and reviewable public source, no Marketplace publication or merge.
+Status: implementation and desktop verification complete. Delivery: audited VSIX and reviewable public source in draft PRs, no Marketplace publication or merge.
 
 ## Product and release boundary
 
@@ -64,3 +64,9 @@ All graph capabilities are in scope: project pipelines, pipeline-to-flowgroup dr
 - **Cancellation and security boundaries:** reject unknown messages/traversal/symlink escape; a real subprocess test kills a Python child and its descendant. Desktop host tests use a real vendor YAML extension in an isolated profile.
 
 The public editor API dependency is pinned to core commit `98d285ab8a7606867abb5708f2715ebe31a9befc`, reviewed and pushed on 8 October 2026. Core package metadata remains 0.9.2; capability checks and installation text explicitly distinguish the unreleased integration build.
+
+## Delivery evidence
+
+All six milestones are implemented. Runtime revision `4ff6ec54608cb5f93f5734ee49dd403c90929d52` passed the [three-platform CI matrix](https://github.com/Mmodarre/lhp-vscode/actions/runs/37713497951) on 8 October 2026: 31 unit/React/adapter tests without skips, three real bridge lifecycle tests, real VS Code host integration on Linux, macOS and Windows, type/lint/format/build gates and zero production dependency vulnerabilities. The Linux job packaged and audited the delivered VSIX; TODO.md records its checksum and PR links.
+
+The accepted desktop authoring scope is shipped. Browser/remote-host support and remote Databricks execution remain outside the user-approved release boundary. Code-derived dependency edges and generated/template/blueprint action bodies navigate to their real source or configuration when direct edge/action mutation is unsupported. Preview remains source-only with explicit bundle, monitoring, sandbox and wheel parity limits; full generation is available separately. These are documented capability boundaries, not hidden successful-preview or deployment claims. No delivery blocker remains, and core E2E files are unchanged.

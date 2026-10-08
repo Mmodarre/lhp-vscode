@@ -52,6 +52,8 @@ npm run package
 
 On headless Linux, use `xvfb-run -a npm run test:extension`. The runner downloads VS Code 1.106.0 and the official Red Hat YAML 1.24.0 release VSIX with a pinned SHA256, then uses isolated test settings and extensions. It never touches your installed VS Code profile. Real adapter tests require `LHP_TEST_PYTHON`; CI fails if it is missing or incompatible. Existing core E2E fixtures and baselines are not modified.
 
+The [verified desktop build](https://github.com/Mmodarre/lhp-vscode/actions/runs/37713497951) passes on Linux, macOS and Windows, including 31 unit/React/adapter tests, three real Python bridge tests and real VS Code integration on each platform. [TODO.md](TODO.md) records the delivered artifact checksum and exact tested revision.
+
 `npm run package` creates `.tmp/lhp-vscode-0.1.0.vsix` and audits its contents. Only bundled host/webview JavaScript, CSS, the Python adapter, media and notices belong in the VSIX. Python/LHP itself is installed separately. Development dependencies, tests, project files and local paths must not be shipped.
 
 See [PLAN.md](PLAN.md), [TODO.md](TODO.md), [architecture](docs/ARCHITECTURE.md) and [research](docs/RESEARCH.md). Apache-2.0; upstream and bundled dependency notices are retained.

@@ -30,12 +30,14 @@
 - [x] Unit and integration tests (protocol, paths, edits, bridge).
 - [x] Extension-host and GUI interaction tests.
 - [x] Typecheck/lint/build and production dependency audit.
-- [ ] Three-OS CI configured and results inspected.
+- [x] Three-OS CI configured and results inspected: Linux, macOS and Windows pass.
 - [x] VSIX built and contents audited (17 allowlisted files; rebuilt at final delivery).
 - [x] README/setup/limitations and third-party notices complete.
-- [x] Parent review issues resolved; final CI results still pending.
-- [ ] Commit/push implementation and open draft PR; report VSIX and evidence.
+- [x] Parent review issues resolved; final runtime revision passes desktop CI.
+- [x] Commit/push implementation and open draft PR; report VSIX and evidence.
 
 Core E2E tests/fixtures/baselines: unchanged; any change requires user approval.
 
-Verified locally: real Python project lifecycle/scaffolds, pure and real-DTO adapter tests, React tests, and actual Linux ARM64 VS Code1.106.0/Red Hat YAML1.24.0 integration including native undo/redo, blueprint parameters, preview expiry and bundle generation. Desktop macOS/Windows execution awaits CI evidence. Packaging and final review gates remain tracked above.
+Verified runtime revision: `4ff6ec54608cb5f93f5734ee49dd403c90929d52`. Both the [push matrix](https://github.com/Mmodarre/lhp-vscode/actions/runs/37713497951) and [PR matrix](https://github.com/Mmodarre/lhp-vscode/actions/runs/37713501894) passed on Linux, macOS and Windows on 8 October 2026. Each platform passed typecheck, lint, formatting, build, 31 tests with no skips, three real Python bridge tests, actual VS Code 1.106.0/Red Hat YAML 1.24.0 integration and the production dependency audit (zero vulnerabilities). Native integration includes undo/redo, blueprint parameters, preview expiry, nested-project discovery and bundle generation. Local Linux ARM64 host integration also passed.
+
+The delivered VSIX is the audited Linux push-build artifact, with 17 allowlisted files and 224,660 bytes. SHA256: `9df3b0dcfeaa572846fc8dc132ec175f523807719899ea719a5b668289eb4f39`. Its README links use the exact source revision. [Extension draft PR #1](https://github.com/Mmodarre/lhp-vscode/pull/1) and [core draft PR #290](https://github.com/Mmodarre/Lakehouse_Plumber/pull/290) remain unmerged; there is no Marketplace publication. Documentation-only delivery updates follow the verified runtime revision.
