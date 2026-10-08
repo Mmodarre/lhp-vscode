@@ -1,6 +1,6 @@
 # Changelog
 
-## 0.1.2 (in development)
+## 0.1.2
 
 - Add a native Lakehouse Plumber Activity Bar Project tree for projects, pipelines, flowgroups, actions and related source files. Expand nodes on demand; opening the tree does not load inactive projects.
 - Add tree title, overflow and item context shortcuts for the existing designer, refresh, validation, preview, generation, environment, setup and Databricks workflows. No default keyboard bindings are imposed.

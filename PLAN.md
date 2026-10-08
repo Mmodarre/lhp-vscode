@@ -1,6 +1,6 @@
 # LHP VS Code implementation plan
 
-Status: 0.1.1 desktop verification complete; 0.1.2 native sidebar and command-shortcut update in progress. Delivery remains an audited VSIX and reviewable public source in the extension draft PR, with no Marketplace publication.
+Status: 0.1.2 native sidebar and command shortcuts are complete, with desktop verification passed on Windows, macOS and Linux. Delivery remains an audited VSIX and reviewable public source in the extension draft PR, with no Marketplace publication.
 
 ## Product and release boundary
 
@@ -73,7 +73,7 @@ The user selected a native Project tree plus command shortcuts. The tree uses VS
 
 The editor's YAML assistance continues to compose with Red Hat YAML: runtime-provided JSON Schemas supply schema-aware editing; LHP's current custom provider adds project-specific scalar suggestions, field hover and definitions. Those custom suggestions use current-line text and project-wide output names, so context precision and duplicate-name handling are candidates for a later focused language-service improvement. This 0.1.2 update documents those limits without changing YAML semantics.
 
-Local acceptance passed on Linux ARM64: 48 unit/React/adapter tests across 12 files, six Python bridge tests, typecheck, lint, formatting, build and production audit with zero vulnerabilities. The real VS Code 1.106.0/Red Hat YAML 1.24.0 extension-host suite passed, including TreeView focus/reveal without a new refresh, native multi-document source opening, stale reference rejection, inactive-project isolation, and two rapid selections before the designer ready handshake. A synthetic model check covered 4,017 flowgroups and 18,766 actions without instantiating collapsed action rows. Three-platform CI and a newly audited 0.1.2 VSIX remain pending; the 0.1.1 evidence below remains the previous verified release record.
+Local acceptance passed on Linux ARM64: 48 unit/React/adapter tests across 12 files, six Python bridge tests, typecheck, lint, formatting, build and production audit with zero vulnerabilities. The real VS Code 1.106.0/Red Hat YAML 1.24.0 extension-host suite passed, including TreeView focus/reveal without a new refresh, native multi-document source opening, stale reference rejection, inactive-project isolation, and two rapid selections before the designer ready handshake. A synthetic model check covered 4,017 flowgroups and 18,766 actions without instantiating collapsed action rows. Both the [push matrix](https://github.com/Mmodarre/lhp-vscode/actions/runs/37725124804) and [PR matrix](https://github.com/Mmodarre/lhp-vscode/actions/runs/37725127161) passed on Linux, macOS and Windows at runtime revision `d70151ed26bdb0459d19db19d01761eb75ccb228`. Actual native workbench captures verified the Activity Bar icon and YAML selection in dark and light themes. The [CI-built 0.1.2 VSIX](https://github.com/Mmodarre/lhp-vscode/actions/runs/37725124804/artifacts/11526939315) contains 18 allowlisted files and 232,044 bytes; SHA256 `02a64660e4338bdfeef3fc56e361e23d8b0cf50358fca1e1f106e73417e7553d`. Subsequent delivery commits change documentation only; the 0.1.1 evidence below remains a historical release record.
 
 ### 0.1.1 large-project refresh correction
 

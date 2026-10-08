@@ -6,7 +6,7 @@ This integration targets desktop VS Code on macOS, Windows and Linux. Distributi
 
 ## Install
 
-1. From the [CI workflow](https://github.com/Mmodarre/lhp-vscode/actions/workflows/ci.yml), choose a completed 0.1.2 build, download its VSIX artifact and extract `lhp-vscode-0.1.2.vsix`, or build it below.
+1. Download the [verified 0.1.2 VSIX artifact](https://github.com/Mmodarre/lhp-vscode/actions/runs/37725124804/artifacts/11526939315) and extract `lhp-vscode-0.1.2.vsix`, or build it below.
 2. In VS Code, run **Extensions: Install from VSIX…**. Install **YAML by Red Hat** if VS Code requests the dependency.
 3. Open a trusted local folder. Choose the **Lakehouse Plumber** Activity Bar icon to browse projects, or run **LHP: Open Pipeline Designer** from the Command Palette.
 4. Select an existing compatible Python environment or use **Set Up Python Environment**. Python 3.11 or newer is required.
@@ -55,7 +55,7 @@ npm run package
 
 On headless Linux, use `xvfb-run -a npm run test:extension`. The runner downloads VS Code 1.106.0 and the official Red Hat YAML 1.24.0 release VSIX with a pinned SHA256, then uses isolated test settings and extensions. It never touches your installed VS Code profile. Real adapter tests require `LHP_TEST_PYTHON`; CI fails if it is missing or incompatible. Existing core E2E fixtures and baselines are not modified.
 
-The previous [0.1.1 desktop build](https://github.com/Mmodarre/lhp-vscode/actions/runs/37718088291) passed on Linux, macOS and Windows, including 39 unit/React/adapter tests, six Python bridge tests and real VS Code integration on each platform. The 0.1.2 matrix and artifact identity will be recorded in [TODO.md](TODO.md) after verification.
+The [0.1.2 desktop build](https://github.com/Mmodarre/lhp-vscode/actions/runs/37725124804) passed on Linux, macOS and Windows, including 48 unit/React/adapter tests, six Python bridge tests and real VS Code integration on each platform. Native sidebar tests cover source navigation, cached view expansion and startup selection. Exact artifact identity and source revision are recorded in [TODO.md](TODO.md).
 
 `npm run package` creates `.tmp/lhp-vscode-0.1.2.vsix` and audits its contents. Only bundled host/webview JavaScript, CSS, the Python adapter, media and notices belong in the VSIX. Python/LHP itself is installed separately. Development dependencies, tests, project files and local paths must not be shipped.
 
