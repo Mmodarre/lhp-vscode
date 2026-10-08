@@ -6,6 +6,7 @@ import type {
   ProjectSummary,
 } from '../../../src/shared/protocol';
 import type { RequestBody } from '../host';
+import { ProjectNotices } from './ProjectNotices';
 
 interface ProjectChromeProps {
   snapshot: ProjectSnapshot;
@@ -44,6 +45,9 @@ export function ProjectChrome({
 }: ProjectChromeProps) {
   const running = !!status?.running;
   const projectId = snapshot.context.project.id;
+  const refreshState = snapshot.refreshState ?? 'ready';
+  const runtime = snapshot.context.runtime;
+  const showRuntimeHelp = !runtime.compatible && refreshState === 'ready';
   return (
     <>
       <header className="topbar">
@@ -55,7 +59,13 @@ export function ProjectChrome({
           {snapshot.context.project.name} · {snapshot.context.project.rootLabel}
         </span>
         <span className="topbar-spacer" />
-        {snapshot.stale && <span className="badge warn">Stale graph</span>}
+        {refreshState === 'loading' ? (
+          <span className="badge">Refreshing graph</span>
+        ) : refreshState === 'failed' ? (
+          <span className="badge warn">Graph refresh failed</span>
+        ) : snapshot.stale && runtime.compatible ? (
+          <span className="badge warn">Stale graph</span>
+        ) : null}
         {dirtyCount > 0 && <span className="badge warn">{dirtyCount} unsaved</span>}
         <button
           className="button quiet small"
@@ -134,14 +144,26 @@ export function ProjectChrome({
           <button
             className="button secondary small"
             onClick={() => send({ type: 'validate' }, true)}
-            disabled={!snapshot.context.trusted || running || !!pending}
+            disabled={
+              !snapshot.context.trusted ||
+              !runtime.compatible ||
+              refreshState !== 'ready' ||
+              running ||
+              !!pending
+            }
           >
             Validate
           </button>
           <button
             className="button secondary small"
             onClick={() => send({ type: 'preview' }, true)}
-            disabled={!snapshot.context.trusted || running || !!pending}
+            disabled={
+              !snapshot.context.trusted ||
+              !runtime.compatible ||
+              refreshState !== 'ready' ||
+              running ||
+              !!pending
+            }
           >
             Preview output
           </button>
@@ -159,12 +181,15 @@ export function ProjectChrome({
           )}
         </div>
       </div>
-      {!snapshot.context.runtime.compatible && (
+      {showRuntimeHelp && (
         <div className="notice warn" role="alert">
           <p>
-            <strong>LHP runtime unavailable or incompatible.</strong>{' '}
-            {snapshot.context.runtime.message ??
-              'Choose a compatible LHP editor integration interpreter.'}
+            <strong>The selected Python cannot load the LHP editor integration.</strong>{' '}
+            {runtime.message ??
+              'Choose a compatible interpreter or set up the reviewed integration.'}
+          </p>
+          <p>
+            Selected Python: <code className="mono interpreter-path">{runtime.interpreter}</code>
           </p>
           <div className="inspector-actions">
             <button
@@ -187,23 +212,42 @@ export function ProjectChrome({
           Workspace trust is required before project edits, validation, or generation.
         </div>
       )}
-      {(snapshot.stale || syntaxError) && (
-        <div className="notice warn" role="status">
-          This graph is based on the last valid project snapshot. Fix YAML errors or refresh before
-          making graph edits. Native source files remain editable.
+      {refreshState === 'loading' && (
+        <div className="notice" role="status">
+          Refreshing this project's graph. The displayed structure may be out of date until loading
+          finishes.
         </div>
       )}
-      {snapshot.notices.map((notice, index) => (
-        <div className="notice" key={`${index}-${notice}`}>
-          {notice}
+      {refreshState === 'failed' && (
+        <div className="notice error" role="alert">
+          <p>
+            <strong>The project graph could not refresh.</strong>{' '}
+            {snapshot.refreshError ?? 'Check the extension error and choose Refresh to retry.'}
+          </p>
+          <p>
+            {snapshot.pipelines.length
+              ? 'The displayed graph is the last successful view.'
+              : 'No project graph is available yet.'}{' '}
+            Selected Python: <code className="mono interpreter-path">{runtime.interpreter}</code>
+          </p>
         </div>
-      ))}
+      )}
+      {refreshState === 'ready' && runtime.compatible && (snapshot.stale || syntaxError) && (
+        <div className="notice warn" role="status">
+          {syntaxError
+            ? 'The YAML source has syntax errors. This graph shows the last valid project snapshot. Fix the YAML in a native editor or use Undo, then refresh.'
+            : 'Project source changed. This graph shows the last valid project snapshot. Refresh before making graph edits.'}
+        </div>
+      )}
+      {refreshState === 'ready' && runtime.compatible && (
+        <ProjectNotices key={snapshot.context.project.id} notices={snapshot.notices} />
+      )}
       {message && (
         <div className="notice" role="status">
           {message}
         </div>
       )}
-      {error && (
+      {error && error !== snapshot.refreshError && (
         <div className="notice error" role="alert">
           {error}
         </div>

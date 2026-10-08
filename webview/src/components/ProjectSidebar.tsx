@@ -63,7 +63,15 @@ export function ProjectSidebar({
         ))}
       </ul>
       {snapshot.pipelines.length === 0 && (
-        <p className="section-note">No pipelines yet. Start with the files-to-bronze guide.</p>
+        <p className="section-note">
+          {!snapshot.context.runtime.compatible
+            ? 'Pipeline list unavailable until the selected Python can load LHP.'
+            : snapshot.refreshState === 'failed'
+              ? 'Pipeline list could not load. Choose Refresh to retry.'
+              : snapshot.refreshState === 'loading'
+                ? 'Refreshing pipeline list…'
+                : 'No pipelines yet. Start with the files-to-bronze guide.'}
+        </p>
       )}
       <h2 className="section-heading">Create</h2>
       <div style={{ padding: '0 10px 12px', display: 'grid', gap: 5 }}>
@@ -74,10 +82,18 @@ export function ProjectSidebar({
         >
           Files → bronze
         </button>
-        <button className="button quiet small" onClick={() => onCreateMode('template')}>
+        <button
+          className="button quiet small"
+          onClick={() => onCreateMode('template')}
+          disabled={!canEdit}
+        >
           Template instance
         </button>
-        <button className="button quiet small" onClick={() => onCreateMode('blueprint')}>
+        <button
+          className="button quiet small"
+          onClick={() => onCreateMode('blueprint')}
+          disabled={!canEdit}
+        >
           Blueprint instance
         </button>
       </div>

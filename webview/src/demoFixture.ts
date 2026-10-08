@@ -231,18 +231,9 @@ export function demoSnapshot(variant: 'normal' | 'stale' | 'runtime' = 'normal')
         path: ordersPath,
         version: 4,
         dirty: variant === 'stale',
-        text:
-          variant === 'stale'
-            ? 'pipeline: bronze_load\nactions: [\n'
-            : 'pipeline: bronze_load\nflowgroup: orders_bronze\n',
       },
-      {
-        path: customerPath,
-        version: 1,
-        dirty: false,
-        text: 'pipeline: bronze_load\nflowgroup: customers_bronze\n',
-      },
-      { path: instancePath, version: 1, dirty: false, text: 'use_template: csv_ingestion\n' },
+      { path: customerPath, version: 1, dirty: false },
+      { path: instancePath, version: 1, dirty: false },
     ],
     catalog: {
       actions: [

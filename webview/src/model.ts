@@ -1,6 +1,6 @@
 import type {
   ActionNode,
-  DocumentSnapshot,
+  DocumentState,
   FlowgroupDetail,
   GraphEdge,
   JsonObject,
@@ -101,7 +101,7 @@ export function documentVersions(snapshot: ProjectSnapshot): Record<string, numb
 export function documentForSource(
   snapshot: ProjectSnapshot,
   source: SourceRef,
-): DocumentSnapshot | undefined {
+): DocumentState | undefined {
   return snapshot.documents.find((doc) => doc.path === source.path);
 }
 

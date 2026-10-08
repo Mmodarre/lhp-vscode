@@ -69,6 +69,7 @@ export function App() {
               ? incoming.snapshot
               : current,
           );
+          if (incoming.snapshot.refreshState !== 'failed') setError('');
           break;
         case 'status':
           setStatus(incoming.status);
@@ -162,10 +163,12 @@ export function App() {
   const syntaxError =
     snapshot?.diagnostics.some((item) => item.layer === 'syntax' && item.severity === 'error') ??
     false;
+  const refreshState = snapshot?.refreshState ?? 'ready';
   const canEdit =
     !!snapshot?.context.trusted &&
     !!snapshot?.context.runtime.compatible &&
     !snapshot.stale &&
+    refreshState === 'ready' &&
     !syntaxError &&
     !pending &&
     !status?.running;
@@ -175,6 +178,7 @@ export function App() {
     !!snapshot?.context.trusted &&
     !!snapshot.context.runtime.compatible &&
     !snapshot.stale &&
+    refreshState === 'ready' &&
     !syntaxError &&
     !status?.running &&
     !pending;
@@ -338,8 +342,24 @@ export function App() {
                 />
               ) : (
                 <div className="empty">
-                  <h2>No graph available</h2>
-                  <p>Choose a pipeline or create a flowgroup.</p>
+                  <h2>
+                    {!snapshot.context.runtime.compatible
+                      ? 'Pipeline graph unavailable'
+                      : refreshState === 'failed'
+                        ? 'Project graph could not load'
+                        : refreshState === 'loading'
+                          ? 'Refreshing project graph…'
+                          : 'No graph available'}
+                  </h2>
+                  <p>
+                    {!snapshot.context.runtime.compatible
+                      ? 'Choose a Python interpreter that can load the LHP editor integration.'
+                      : refreshState === 'failed'
+                        ? 'Choose Refresh to retry loading this project.'
+                        : refreshState === 'loading'
+                          ? 'The pipeline view will appear when refresh finishes.'
+                          : 'Choose a pipeline or create a flowgroup.'}
+                  </p>
                 </div>
               )}
             </>
@@ -462,8 +482,9 @@ export function App() {
         <span>{snapshot.context.runtime.lhpVersion ?? 'LHP runtime unavailable'}</span>
         <span>·</span>
         <span>
-          {snapshot.diagnostics.filter((item) => item.severity === 'error').length} errors,{' '}
-          {snapshot.diagnostics.filter((item) => item.severity === 'warning').length} warnings
+          {!snapshot.context.runtime.compatible || refreshState !== 'ready'
+            ? 'Validation unavailable'
+            : `${snapshot.diagnostics.filter((item) => item.severity === 'error').length} errors, ${snapshot.diagnostics.filter((item) => item.severity === 'warning').length} warnings`}
         </span>
         <span className="spacer" />
         {status?.message && <span>{status.message}</span>}

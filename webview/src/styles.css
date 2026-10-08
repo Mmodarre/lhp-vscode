@@ -292,6 +292,9 @@ button:disabled {
 .mono {
   font-family: var(--vscode-editor-font-family, monospace);
 }
+.interpreter-path {
+  overflow-wrap: anywhere;
+}
 .badge {
   display: inline-flex;
   align-items: center;
@@ -507,6 +510,27 @@ button:disabled {
 }
 .notice p:last-child {
   margin-bottom: 0;
+}
+.project-notices-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.project-notices-details {
+  max-height: 170px;
+  overflow: auto;
+  margin-top: 8px;
+  border-top: 1px solid var(--vscode-panel-border, #555);
+}
+.project-notices-details ul {
+  margin: 8px 0 2px;
+  padding-left: 20px;
+}
+.project-notices-details li {
+  margin: 0 0 5px;
+  overflow-wrap: anywhere;
 }
 .empty {
   display: flex;

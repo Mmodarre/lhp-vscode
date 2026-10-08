@@ -6,6 +6,59 @@ const state = new URLSearchParams(location.search).get('state');
 const variant = state === 'stale' || state === 'runtime' ? state : 'normal';
 const empty = state === 'empty';
 let snapshot = demoSnapshot(variant);
+if (state === 'runtime')
+  snapshot = {
+    ...snapshot,
+    pipelines: [],
+    flowgroups: [],
+    flowgroupEdges: [],
+    documents: [],
+    diagnostics: [],
+    notices: [],
+    stale: false,
+  };
+if (state === 'failed')
+  snapshot = {
+    ...snapshot,
+    refreshState: 'failed',
+    refreshError: 'Synthetic transport failure while loading the current project.',
+    stale: true,
+    diagnostics: [],
+    notices: [],
+  };
+if (state === 'notices')
+  snapshot = {
+    ...snapshot,
+    notices: Array.from({ length: 84 }, (_, index) => `External dataset: synthetic_${index}`),
+  };
+if (state === 'large') {
+  const prototype = snapshot.pipelines[0]?.flowgroups[0];
+  if (prototype) {
+    const summaries = Array.from({ length: 4017 }, (_, index) => ({
+      ...prototype,
+      id: `synthetic-${index}`,
+      name: `synthetic_flowgroup_${index}`,
+      source: { path: `pipelines/synthetic_${index}.yaml` },
+    }));
+    snapshot = {
+      ...snapshot,
+      pipelines: [{ ...snapshot.pipelines[0]!, flowgroups: summaries }],
+      flowgroupEdges: summaries.flatMap((item, index) =>
+        index % 6 === 5 || !summaries[index + 1]
+          ? []
+          : [
+              {
+                id: `synthetic-edge-${index}`,
+                source: item.id,
+                target: summaries[index + 1]!.id,
+                dataset: `synthetic_view_${index}`,
+                editable: false,
+              },
+            ],
+      ),
+    };
+  }
+}
 const emit = (message: HostMessage) =>
   window.dispatchEvent(new MessageEvent('message', { data: message }));
 

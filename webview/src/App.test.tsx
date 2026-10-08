@@ -98,7 +98,15 @@ describe('project graph navigation', () => {
 
   it('shows an actionable runtime setup state without invented project content', async () => {
     render(<App />);
-    const snapshot = demoSnapshot('runtime');
+    const snapshot = {
+      ...demoSnapshot('runtime'),
+      pipelines: [],
+      flowgroups: [],
+      flowgroupEdges: [],
+      stale: true,
+      diagnostics: demoSnapshot('stale').diagnostics,
+      notices: ['Source changed. Refreshing the graph…'],
+    };
     emit({
       type: 'bootstrap',
       protocolVersion: PROTOCOL_VERSION,
@@ -107,12 +115,105 @@ describe('project graph navigation', () => {
       trusted: true,
     });
     await waitFor(() =>
-      expect(screen.getByText(/LHP runtime unavailable or incompatible/)).toBeTruthy(),
+      expect(
+        screen.getByText(/selected Python cannot load the LHP editor integration/),
+      ).toBeTruthy(),
     );
+    expect(screen.getByText('/demo/python')).toBeTruthy();
+    expect(screen.getByText('Pipeline graph unavailable')).toBeTruthy();
+    expect(screen.queryByText(/Fix YAML errors/)).toBeNull();
+    expect(screen.queryByText(/Source changed\. Refreshing/)).toBeNull();
+    expect(screen.queryByText('Stale graph')).toBeNull();
     expect(screen.getByRole('button', { name: 'Choose interpreter' })).toBeTruthy();
+    expect((screen.getByRole('button', { name: 'Validate' }) as HTMLButtonElement).disabled).toBe(
+      true,
+    );
     expect(
       (screen.getByRole('button', { name: 'Generate full project…' }) as HTMLButtonElement)
         .disabled,
     ).toBe(true);
+    emit({
+      type: 'error',
+      code: 'PROTOCOL_LIMIT',
+      message: 'Previous transport failure.',
+      recoverable: true,
+    });
+    await screen.findByText('Previous transport failure.');
+    emit({
+      type: 'snapshot',
+      snapshot: { ...demoSnapshot(), revision: 10, refreshState: 'ready' },
+    });
+    await waitFor(() => expect(screen.queryByText('Previous transport failure.')).toBeNull());
+    expect(screen.getByText('bronze_load · flowgroups')).toBeTruthy();
+  });
+
+  it('replaces an old runtime warning with a refresh failure while retaining the last graph', async () => {
+    render(<App />);
+    const old = { ...demoSnapshot('runtime'), stale: true };
+    emit({
+      type: 'bootstrap',
+      protocolVersion: PROTOCOL_VERSION,
+      projects: [old.context.project],
+      snapshot: old,
+      trusted: true,
+    });
+    await screen.findByText(/selected Python cannot load/);
+    const loading = {
+      ...demoSnapshot(),
+      revision: 8,
+      stale: true,
+      refreshState: 'loading' as const,
+      context: {
+        ...demoSnapshot().context,
+        runtime: { ...demoSnapshot().context.runtime, interpreter: '/demo/current-python' },
+      },
+    };
+    emit({ type: 'snapshot', snapshot: loading });
+    await screen.findByText(/Refreshing this project's graph/);
+    expect(screen.queryByText(/selected Python cannot load/)).toBeNull();
+    const failed = {
+      ...loading,
+      revision: 9,
+      refreshState: 'failed' as const,
+      refreshError: 'LHP response exceeded the 32 MB transport limit.',
+    };
+    emit({ type: 'snapshot', snapshot: failed });
+    await screen.findByText(/project graph could not refresh/);
+    expect(screen.getByText(/32 MB transport limit/)).toBeTruthy();
+    expect(screen.getByText('/demo/current-python')).toBeTruthy();
+    expect(screen.getByText('bronze_load · flowgroups')).toBeTruthy();
+    expect(screen.queryByText(/Fix YAML errors/)).toBeNull();
+    expect(screen.queryByText(/selected Python cannot load/)).toBeNull();
+    expect(
+      (screen.getByRole('button', { name: 'Generate full project…' }) as HTMLButtonElement)
+        .disabled,
+    ).toBe(true);
+  });
+
+  it('keeps a large informational notice set accessible without covering the graph', async () => {
+    render(<App />);
+    const snapshot = {
+      ...demoSnapshot(),
+      notices: Array.from({ length: 84 }, (_, index) => `External dataset: synthetic_${index}`),
+    };
+    emit({
+      type: 'bootstrap',
+      protocolVersion: PROTOCOL_VERSION,
+      projects: [snapshot.context.project],
+      snapshot,
+      trusted: true,
+    });
+    await screen.findByText('bronze_load · flowgroups');
+    expect(screen.getByText(/84 project notices/)).toBeTruthy();
+    expect(screen.queryByText('External dataset: synthetic_0')).toBeNull();
+    const reveal = screen.getByRole('button', { name: 'Show details' });
+    expect(reveal.getAttribute('aria-expanded')).toBe('false');
+    fireEvent.click(reveal);
+    expect(screen.getByRole('region', { name: 'Project notices' })).toBeTruthy();
+    expect(screen.getByText('External dataset: synthetic_0')).toBeTruthy();
+    expect(screen.getByText('External dataset: synthetic_83')).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'Hide details' }).getAttribute('aria-expanded')).toBe(
+      'true',
+    );
   });
 });
