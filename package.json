@@ -1,0 +1,264 @@
+{
+  "name": "lhp-vscode",
+  "displayName": "Lakehouse Plumber",
+  "description": "Native YAML, guided graphs and forms for Lakehouse Plumber pipelines.",
+  "version": "0.1.0",
+  "publisher": "Mmodarre",
+  "license": "Apache-2.0",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Mmodarre/lhp-vscode.git"
+  },
+  "bugs": {
+    "url": "https://github.com/Mmodarre/lhp-vscode/issues"
+  },
+  "homepage": "https://github.com/Mmodarre/lhp-vscode#readme",
+  "engines": {
+    "vscode": "^1.106.0",
+    "node": ">=22.12.0"
+  },
+  "categories": [
+    "Programming Languages",
+    "Visualization",
+    "Other"
+  ],
+  "keywords": [
+    "lakehouse",
+    "databricks",
+    "yaml",
+    "pipeline",
+    "lhp"
+  ],
+  "main": "./dist/extension.js",
+  "icon": "media/icon.png",
+  "extensionKind": [
+    "workspace"
+  ],
+  "activationEvents": [
+    "workspaceContains:**/lhp.yaml"
+  ],
+  "extensionDependencies": [
+    "redhat.vscode-yaml"
+  ],
+  "extensionPack": [],
+  "overrides": {
+    "react-is": "19.3.0"
+  },
+  "capabilities": {
+    "untrustedWorkspaces": {
+      "supported": "limited",
+      "description": "Project code, Python processes, edits, previews and generation require workspace trust."
+    },
+    "virtualWorkspaces": {
+      "supported": false,
+      "description": "LHP requires a local desktop Python environment and filesystem."
+    }
+  },
+  "contributes": {
+    "commands": [
+      {
+        "command": "lhp.openDesigner",
+        "title": "Open Pipeline Designer",
+        "category": "LHP",
+        "icon": "$(type-hierarchy)"
+      },
+      {
+        "command": "lhp.refresh",
+        "title": "Refresh Project",
+        "category": "LHP"
+      },
+      {
+        "command": "lhp.selectProject",
+        "title": "Select Project",
+        "category": "LHP"
+      },
+      {
+        "command": "lhp.selectInterpreter",
+        "title": "Select Python Interpreter",
+        "category": "LHP"
+      },
+      {
+        "command": "lhp.setupEnvironment",
+        "title": "Set Up Python Environment",
+        "category": "LHP"
+      },
+      {
+        "command": "lhp.createProject",
+        "title": "Create Project",
+        "category": "LHP"
+      },
+      {
+        "command": "lhp.selectEnvironment",
+        "title": "Select Environment",
+        "category": "LHP"
+      },
+      {
+        "command": "lhp.validate",
+        "title": "Validate Project",
+        "category": "LHP"
+      },
+      {
+        "command": "lhp.preview",
+        "title": "Preview Generated Source",
+        "category": "LHP"
+      },
+      {
+        "command": "lhp.generate",
+        "title": "Generate Full Project",
+        "category": "LHP"
+      },
+      {
+        "command": "lhp.openDatabricks",
+        "title": "Open Databricks Bundle",
+        "category": "LHP"
+      },
+      {
+        "command": "lhp.cancel",
+        "title": "Cancel Current Operation",
+        "category": "LHP"
+      }
+    ],
+    "menus": {
+      "editor/title": [
+        {
+          "command": "lhp.openDesigner",
+          "when": "resourceExtname == .yaml || resourceExtname == .yml",
+          "group": "navigation"
+        }
+      ],
+      "explorer/context": [
+        {
+          "command": "lhp.openDesigner",
+          "when": "resourceFilename == lhp.yaml",
+          "group": "navigation"
+        }
+      ]
+    },
+    "configuration": {
+      "title": "Lakehouse Plumber",
+      "properties": {
+        "lhp.pythonPath": {
+          "type": "string",
+          "default": "",
+          "scope": "resource",
+          "description": "Python executable containing the compatible LHP 0.9.3 integration build. Empty detects .venv or the Python extension selection."
+        },
+        "lhp.environment": {
+          "type": "string",
+          "default": "dev",
+          "scope": "resource",
+          "description": "Environment used for inspection, validation, preview and generation."
+        },
+        "lhp.autoValidate": {
+          "type": "boolean",
+          "default": true,
+          "scope": "resource",
+          "description": "Run canonical validation after source edits. Graph parsing diagnostics always refresh."
+        },
+        "lhp.operationTimeoutSeconds": {
+          "type": "number",
+          "default": 180,
+          "minimum": 10,
+          "maximum": 1800,
+          "description": "Timeout for a Python bridge operation."
+        },
+        "lhp.pipelineConfigPath": {
+          "type": "string",
+          "default": "",
+          "scope": "resource",
+          "description": "Optional project-relative pipeline configuration, equivalent to the CLI -pc option. Empty uses the normal CLI default."
+        },
+        "lhp.includeTestsInGeneration": {
+          "type": "boolean",
+          "default": false,
+          "scope": "resource",
+          "description": "Emit configured test actions during full generation, equivalent to CLI --include-tests. Validation always checks configured test actions."
+        }
+      }
+    },
+    "walkthroughs": [
+      {
+        "id": "lhp.getStarted",
+        "title": "Build a pipeline with LHP",
+        "description": "Choose Python, create or open a project, then edit YAML with guided graphs and forms.",
+        "steps": [
+          {
+            "id": "runtime",
+            "title": "Select a compatible Python environment",
+            "description": "[Select Python](command:lhp.selectInterpreter) or [create an environment](command:lhp.setupEnvironment). LHP 0.9.3 is currently an integration build.",
+            "media": {
+              "markdown": "media/welcome.md"
+            },
+            "completionEvents": [
+              "onCommand:lhp.selectInterpreter"
+            ]
+          },
+          {
+            "id": "project",
+            "title": "Open or create an LHP project",
+            "description": "[Create project](command:lhp.createProject), or open a folder containing lhp.yaml.",
+            "media": {
+              "markdown": "media/welcome.md"
+            },
+            "completionEvents": [
+              "onCommand:lhp.createProject"
+            ]
+          },
+          {
+            "id": "design",
+            "title": "Author in YAML and the designer",
+            "description": "[Open the designer](command:lhp.openDesigner). Create bronze ingestion, inspect actions and open their source files.",
+            "media": {
+              "markdown": "media/welcome.md"
+            },
+            "completionEvents": [
+              "onCommand:lhp.openDesigner"
+            ]
+          }
+        ]
+      }
+    ]
+  },
+  "scripts": {
+    "build": "node scripts/build.mjs",
+    "watch": "node scripts/build.mjs --watch",
+    "typecheck": "tsc --noEmit",
+    "lint": "eslint src webview/src tests scripts --max-warnings 0",
+    "test": "vitest run",
+    "test:bridge": "python3 -m unittest discover -s bridge/tests -v",
+    "test:extension": "node scripts/test-extension.mjs",
+    "check": "npm run typecheck && npm run lint && npm run build && npm test && npm run test:bridge",
+    "audit:production": "npm audit --omit=dev",
+    "package": "npm run build && vsce package --no-dependencies --out .tmp/lhp-vscode-0.1.0.vsix && node scripts/check-package.mjs",
+    "vscode:prepublish": "npm run build",
+    "format": "prettier --write src webview/src tests scripts *.json *.mjs vitest.config.mts",
+    "format:check": "prettier --check src webview/src tests scripts *.json *.mjs vitest.config.mts"
+  },
+  "dependencies": {
+    "@xyflow/react": "12.12.0",
+    "react": "19.3.0",
+    "react-dom": "19.3.0",
+    "yaml": "2.9.1"
+  },
+  "devDependencies": {
+    "@eslint/js": "10.0.1",
+    "@testing-library/react": "16.3.3",
+    "@testing-library/user-event": "14.6.7",
+    "@types/node": "22.20.5",
+    "@types/react": "19.3.0",
+    "@types/react-dom": "19.3.0",
+    "@types/vscode": "1.106.0",
+    "@types/yauzl": "3.4.0",
+    "@vscode/test-electron": "3.1.0",
+    "@vscode/vsce": "4.0.0",
+    "esbuild": "0.28.2",
+    "eslint": "10.12.0",
+    "globals": "17.13.0",
+    "jsdom": "30.1.1",
+    "prettier": "3.6.2",
+    "typescript": "6.0.3",
+    "typescript-eslint": "8.70.0",
+    "vitest": "5.0.3",
+    "yauzl": "3.4.0"
+  }
+}

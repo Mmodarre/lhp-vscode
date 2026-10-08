@@ -1,0 +1,50 @@
+import * as path from 'node:path';
+import { realpath, lstat } from 'node:fs/promises';
+
+export function relativePath(root: string, filename: string): string | undefined {
+  const relative = path.relative(root, filename);
+  if (
+    !relative ||
+    relative.startsWith(`..${path.sep}`) ||
+    relative === '..' ||
+    path.isAbsolute(relative)
+  )
+    return undefined;
+  return relative.split(path.sep).join('/');
+}
+export function lexicalPath(root: string, relative: string): string {
+  if (
+    !relative ||
+    relative.includes('\\') ||
+    relative.includes('\0') ||
+    path.posix.isAbsolute(relative) ||
+    /^[A-Za-z]:/.test(relative) ||
+    relative.split('/').some((p) => !p || p === '..' || p === '.')
+  ) {
+    throw new Error('Expected a safe project-relative path.');
+  }
+  const result = path.resolve(root, ...relative.split('/'));
+  if (!relativePath(root, result)) throw new Error('Path must stay inside the project.');
+  return result;
+}
+/** Existing and newly-created paths are contained after resolving every parent. */
+export async function containedPath(root: string, relative: string): Promise<string> {
+  const result = lexicalPath(root, relative);
+  const canonicalRoot = await realpath(root);
+  let existing = result;
+  while (true) {
+    try {
+      await lstat(existing);
+      break;
+    } catch (error) {
+      if (!(error instanceof Error) || !('code' in error) || error.code !== 'ENOENT') throw error;
+      const parent = path.dirname(existing);
+      if (parent === existing) throw new Error('Cannot resolve project path.', { cause: error });
+      existing = parent;
+    }
+  }
+  const canonical = await realpath(existing);
+  if (canonical !== canonicalRoot && !relativePath(canonicalRoot, canonical))
+    throw new Error('Symlink points outside the project.');
+  return result;
+}

@@ -1,6 +1,6 @@
 # LHP VS Code implementation plan
 
-Status: implementation in progress. Delivery: installable VSIX and reviewable public source, no Marketplace publication or merge.
+Status: implementation complete; final delivery and desktop CI verification in progress. Delivery: installable VSIX and reviewable public source, no Marketplace publication or merge.
 
 ## Product and release boundary
 
@@ -50,3 +50,17 @@ All graph capabilities are in scope: project pipelines, pipeline-to-flowgroup dr
 - 2026-10-08: user authorised public `Mmodarre/lhp-vscode`, Apache-2.0, implementation, commit and push; VSIX first; no Marketplace.
 - 2026-10-08: balanced forms and YAML accepted; all graph operations required in first release; desktop only; core work isolated on `feature/vscode-integration`.
 - 2026-10-08: core E2E modifications require separate explicit approval.
+
+## Concrete acceptance scenarios and recorded status
+
+- **No project / missing Python:** open designer with a clear setup state; choose existing Python or create an isolated venv; incompatible PyPI 0.9.2 offers the pinned integration build. No project code runs before workspace trust. UI and setup unit checks cover these branches; the real interpreter/adapter lifecycle is integration-tested.
+- **New project and bronze:** create an absent or empty target. Bundle setup asks for explicit catalog/schema and writes active pipeline configuration. Bronze requires a fully qualified target. Native YAML appears, canonical validation succeeds, preview includes draft changes and full generation produces source and bundle resources. Real Python and VS Code tests cover the lifecycle.
+- **Multi-project context:** store interpreter, environment and pipeline config per LHP root, including nested roots in one workspace folder. Switching context invalidates in-flight output. Existing project creation outside the workspace is selected explicitly after the folder addition.
+- **Native/visual round trip:** modify an action form, observe dirty YAML, undo and redo through VS Code, reject a stale version, and refresh from a native edit. Unit tests cover nested comments, Unicode, duplicate names and mapping-array/multi-document source addresses; native integration covers edits and undo/redo.
+- **Invalid YAML / empty graph:** retain last valid graph with a stale marker and disable graph writes. Native source opening and undo stay available. Empty valid projects expose creation paths. Unsupported root sequences surface the actual LHP parser diagnostic.
+- **Template/blueprint scope:** qualified nested template names and required parameters appear from the installed catalogue. Blueprint invocation parameters remain editable while generated action lists remain read-only. Native integration verifies parameter change updates the resolved graph.
+- **Preview:** use unsaved YAML/SQL/Python/config overlays in an isolated mirror; never write the user's output. Read-only preview expires immediately when inputs change. Explicit parity notices explain bundle/monitoring/sandbox/wheel limitations.
+- **Generation:** one native confirmation, save all authored project documents, recheck source state, run full project into the selected environment output, and synchronise an enabled bundle. The generated-file watcher cannot cancel the writer's own operation; actual host tests verify generated Python and bundle resource files.
+- **Cancellation and security boundaries:** reject unknown messages/traversal/symlink escape; a real subprocess test kills a Python child and its descendant. Desktop host tests use a real vendor YAML extension in an isolated profile.
+
+The public editor API dependency is pinned to core commit `98d285ab8a7606867abb5708f2715ebe31a9befc`, reviewed and pushed on 8 October 2026. Core package metadata remains 0.9.2; capability checks and installation text explicitly distinguish the unreleased integration build.

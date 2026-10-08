@@ -1,0 +1,10 @@
+**/*
+!dist/**
+!bridge/lhp_bridge.py
+!media/**
+!package.json
+!README.md
+!LICENSE
+!NOTICE
+!THIRD_PARTY_NOTICES.md
+!CHANGELOG.md
