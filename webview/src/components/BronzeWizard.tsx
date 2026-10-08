@@ -15,7 +15,8 @@ export function BronzeWizard({ pipelines, busy, onCancel, onCreate }: {
   const [format, setFormat] = useState('csv')
   const [target, setTarget] = useState('')
   const [submitted, setSubmitted] = useState(false)
-  const valid = !!name.trim() && !!pipeline.trim() && !!sourcePath.trim() && !!target.trim()
+  const targetQualified = target.split('.').length === 3 && target.split('.').every((part) => !!part.trim())
+  const valid = !!name.trim() && !!pipeline.trim() && !!sourcePath.trim() && targetQualified
   const submit = (event: FormEvent) => {
     event.preventDefault()
     setSubmitted(true)
@@ -40,9 +41,10 @@ export function BronzeWizard({ pipelines, busy, onCancel, onCreate }: {
         <select className="select" id="bronze-format" value={format} onChange={(event) => setFormat(event.target.value)}>
           {FORMATS.map((value) => <option key={value} value={value}>{value.toUpperCase()}</option>)}
         </select><span className="field-help">Choose the format of incoming files.</span></div>
-      <div className="field"><label className="field-label" htmlFor="bronze-target">Bronze table <span className="required">*</span></label>
-        <input className="input mono" id="bronze-target" value={target} placeholder="orders" onChange={(event) => setTarget(event.target.value)} required />
-        <span className="field-help">The target streaming table. Project environment resolves catalog and bronze schema.</span></div>
+      <div className="field"><label className="field-label" htmlFor="bronze-target">Bronze table (catalog.schema.table) <span className="required">*</span></label>
+        <input className="input mono" id="bronze-target" value={target} placeholder="main.bronze.orders" onChange={(event) => setTarget(event.target.value)} aria-invalid={!!target && !targetQualified} required />
+        <span className="field-help">Use a fully qualified target. Configured environment variables can supply catalog and schema.</span>
+        {!!target && !targetQualified && <span className="field-error" role="alert">Enter catalog.schema.table.</span>}</div>
     </div>
     {submitted && !valid && <div className="notice error" role="alert">Complete the required fields before creating the flowgroup.</div>}
     <div className="wizard-actions"><button className="button secondary" type="button" onClick={onCancel}>Cancel</button>
