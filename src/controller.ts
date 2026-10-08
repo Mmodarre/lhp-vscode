@@ -11,6 +11,7 @@ import { PreviewDocuments } from './preview';
 import { discoverProjects, type Project } from './projects';
 import { refreshProject } from './refresh';
 import { OperationQueue } from './operationQueue';
+import { LatestTask } from './latestTask';
 import { callBridge } from './projectCalls';
 import { ProjectWorkspace } from './projectWorkspace';
 import { InspectionDocuments } from './inspectionDocuments';
@@ -61,7 +62,7 @@ export class Controller implements vscode.Disposable {
     definition?: string;
   };
   status?: OperationStatus;
-  private discovery = 0;
+  private readonly discovery = new LatestTask();
   private readonly operations = new OperationQueue((status) => this.publishStatus(status));
   get isOperating(): boolean {
     return this.operations.running;
@@ -276,25 +277,28 @@ export class Controller implements vscode.Disposable {
     this.stateChanged.fire();
   }
   async discover(): Promise<void> {
-    const discovery = ++this.discovery;
-    const projects = await discoverProjects();
-    if (discovery !== this.discovery) return;
-    this.projects = projects;
-    const previous = this.project?.summary.id;
-    const selected = this.context.workspaceState.get<string>('lhp.activeProject');
-    this.project =
-      this.projects.find(
-        (p) => p.summary.id === this.project?.summary.id || p.summary.id === selected,
-      ) ?? this.projects[0];
-    if (previous !== this.project?.summary.id) {
-      this.invalidate();
-      this.snapshot = undefined;
-      this.problems.clear();
-      this.workspace.reset(this.project);
-    }
-    this.bootstrap();
-    await this.refreshResources();
-    await this.refresh();
+    await this.discovery.run(async (isCurrent) => {
+      if (!isCurrent()) return;
+      const projects = await discoverProjects();
+      if (!isCurrent()) return;
+      this.projects = projects;
+      const previous = this.project?.summary.id;
+      const selected = this.context.workspaceState.get<string>('lhp.activeProject');
+      this.project =
+        this.projects.find(
+          (p) => p.summary.id === this.project?.summary.id || p.summary.id === selected,
+        ) ?? this.projects[0];
+      if (previous !== this.project?.summary.id) {
+        this.invalidate();
+        this.snapshot = undefined;
+        this.problems.clear();
+        this.workspace.reset(this.project);
+      }
+      this.bootstrap();
+      await this.refreshResources();
+      if (!isCurrent()) return;
+      await this.refresh();
+    });
   }
   async show(): Promise<void> {
     this.panel.show();
