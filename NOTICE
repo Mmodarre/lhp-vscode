@@ -1,0 +1,7 @@
+LHP for Visual Studio Code
+Copyright 2026 Mehdi Modarressi and contributors
+
+This project integrates with Lakehouse Plumber, Copyright Mehdi Modarressi
+and contributors, licensed under the Apache License, Version 2.0.
+LHP source and package data reused in this project retain their original
+licence. See THIRD_PARTY_NOTICES.md for bundled dependencies and assets.
