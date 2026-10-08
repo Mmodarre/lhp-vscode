@@ -1,6 +1,6 @@
 # LHP VS Code implementation plan
 
-Status: implementation and desktop verification complete. Delivery: audited VSIX and reviewable public source in draft PRs, no Marketplace publication or merge.
+Status: implementation and desktop verification complete. Delivery: audited VSIX and reviewable public source in the extension draft PR, no extension merge or Marketplace publication.
 
 ## Product and release boundary
 
