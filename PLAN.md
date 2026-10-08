@@ -2,6 +2,8 @@
 
 Replace the new-folder Create Project dead end with the native Manage Workspace Trust action and explicit retry guidance. Keep Create Project, Select Python Interpreter and Set Up Python Environment reachable in Restricted Mode; their host guards block interpreter discovery, Python, settings and project writes until a fresh trusted invocation. Do not queue work behind trust changes. Recheck trust and workspace/project context before delayed onboarding side effects. Preserve all 0.2.0 capabilities and the public core pin. Verification includes cancellation, trust-manager return without consent, explicit trusted retry, stale-scope regressions, native Restricted Mode smoke, existing required gates and audited 0.2.1 packaging.
 
+Completed: runtime `42a2323e267d325bf52a00a6561ed7b71a9661af` passed the [push](https://github.com/Mmodarre/lhp-vscode/actions/runs/37857956889) and [PR](https://github.com/Mmodarre/lhp-vscode/actions/runs/37857960668) desktop matrices on Linux, macOS and Windows. The separately verified Restricted Mode workflow requires a fresh command after trusting. The canonical [0.2.1 VSIX](https://github.com/Mmodarre/lhp-vscode/actions/runs/37857956889/artifacts/11584728249) passed its inclusion audit; TODO.md records the exact checksum and local/native evidence.
+
 ---
 
 # Active implementation: approved 0.2.0 redesign

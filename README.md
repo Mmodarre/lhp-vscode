@@ -6,7 +6,7 @@ This integration targets desktop VS Code on macOS, Windows and Linux. Distributi
 
 ## Install
 
-1. Download the [verified 0.2.0 VSIX artifact](https://github.com/Mmodarre/lhp-vscode/actions/runs/37736437280/artifacts/11532285880) and extract `lhp-vscode-0.2.0.vsix`, or build it with `npm ci` and `npm run package`.
+1. Download the [verified 0.2.1 VSIX artifact](https://github.com/Mmodarre/lhp-vscode/actions/runs/37857956889/artifacts/11584728249) and extract `lhp-vscode-0.2.1.vsix`, or build it with `npm ci` and `npm run package`.
 2. In VS Code, run **Extensions: Install from VSIX…**. Install **YAML by Red Hat** if VS Code requests the dependency.
 3. Open a local folder. Choose the **Lakehouse Plumber** Activity Bar icon to browse the selected project. Contained source browsing works without Python or workspace trust; trust is required for execution and edits.
 4. Select an existing compatible Python environment or use **Set Up Python Environment**. Python 3.11 or newer is required.
@@ -60,7 +60,7 @@ npm run package
 
 On headless Linux, use `xvfb-run -a npm run test:extension`. The runner downloads VS Code 1.106.0 and the official Red Hat YAML 1.24.0 release VSIX with a pinned SHA256, then uses isolated test settings and extensions. It never touches your installed VS Code profile. Real adapter tests require `LHP_TEST_PYTHON`; CI fails if it is missing or incompatible. Existing core E2E fixtures and baselines are not modified.
 
-The [0.2.0 push build](https://github.com/Mmodarre/lhp-vscode/actions/runs/37736437280) and [PR build](https://github.com/Mmodarre/lhp-vscode/actions/runs/37736442314) both passed on Linux, macOS and Windows, including 84 unit/React/adapter tests without skips, ten Python bridge tests, real VS Code integration and the production audit with zero vulnerabilities. Native checks cover five-view navigation, YAML help, inspectors, source edits, generated preview comparison and project isolation. Exact artifact identity and runtime revision are recorded in [TODO.md](TODO.md).
+The [0.2.1 push build](https://github.com/Mmodarre/lhp-vscode/actions/runs/37857956889) and [PR build](https://github.com/Mmodarre/lhp-vscode/actions/runs/37857960668) both passed on Linux, macOS and Windows, including 101 unit/React/adapter tests without skips, ten Python bridge tests, real VS Code integration and the production audit with zero vulnerabilities. Native checks cover five-view navigation, YAML help, inspectors, source edits, generated preview comparison and project isolation. A separate Linux ARM64 native smoke with workspace trust enabled verified cancellation, the Manage Workspace Trust action, no automatic continuation, and an explicit trusted Create Project retry. Exact artifact identity and runtime revision are recorded in [TODO.md](TODO.md).
 
 `npm run package` creates `.tmp/lhp-vscode-0.2.1.vsix` and audits its contents. Only bundled host/webview JavaScript, CSS, the Python adapter, media and notices belong in the VSIX. Python/LHP itself is installed separately. Development dependencies, tests, project files and local paths must not be shipped.
 
