@@ -3,6 +3,7 @@ import { mkdir, stat } from 'node:fs/promises';
 import * as vscode from 'vscode';
 import { stringify } from 'yaml';
 import { BridgeClient } from './bridgeClient';
+import { assertWorkspaceTrust, ensureOnboardingTrust, onboardingContext } from './onboardingTrust';
 import {
   DEFAULT_INTERPRETER_KEY,
   type InterpreterPick,
@@ -22,21 +23,15 @@ import {
   runPythonCommand,
 } from './onboardingProcess';
 
-function requireTrust(): boolean {
-  if (vscode.workspace.isTrusted) return true;
-  void vscode.window.showWarningMessage(
-    'Trust this workspace before running Python, creating a project, or installing LHP.',
-  );
-  return false;
-}
-
 /** Pick a compatible existing LHP interpreter, or launch guided local setup. */
 export async function selectInterpreter(
   projectRoot: string | undefined,
   context: vscode.ExtensionContext,
   bridge: BridgeClient,
+  checkContext = onboardingContext(),
 ): Promise<string | undefined> {
-  if (!requireTrust()) return undefined;
+  if (!(await ensureOnboardingTrust('Select Python Interpreter'))) return undefined;
+  checkContext();
   const options: InterpreterPick[] = (await candidates(projectRoot, context)).map((item) => ({
     label: item.label,
     description: item.path,
@@ -58,9 +53,12 @@ export async function selectInterpreter(
     placeHolder: 'Choose a compatible LHP editor integration environment',
   });
   if (!chosen) return undefined;
-  if (chosen.action === 'setup') return setupEnvironment(projectRoot, context, bridge);
+  checkContext();
+  if (chosen.action === 'setup')
+    return setupEnvironment(projectRoot, context, bridge, checkContext);
   const interpreter = chosen.action === 'browse' ? await browsePython() : chosen.path;
   if (!interpreter) return undefined;
+  checkContext();
   const report = await health(interpreter, bridge);
   if (!report.compatible) {
     const next = await vscode.window.showWarningMessage(
@@ -68,11 +66,15 @@ export async function selectInterpreter(
       'Set up environment',
       'Choose another',
     );
-    if (next === 'Set up environment') return setupEnvironment(projectRoot, context, bridge);
-    if (next === 'Choose another') return selectInterpreter(projectRoot, context, bridge);
+    if (next === 'Set up environment')
+      return setupEnvironment(projectRoot, context, bridge, checkContext);
+    if (next === 'Choose another')
+      return selectInterpreter(projectRoot, context, bridge, checkContext);
     return undefined;
   }
-  await persistInterpreter(projectRoot, context, interpreter);
+  checkContext();
+  await persistInterpreter(projectRoot, context, interpreter, checkContext);
+  checkContext();
   void vscode.window.showInformationMessage(
     `LHP is ready with Python ${report.version ?? '3.11+'}.`,
   );
@@ -136,13 +138,17 @@ export async function setupEnvironment(
   projectRoot: string | undefined,
   context: vscode.ExtensionContext,
   bridge: BridgeClient,
+  checkContext = onboardingContext(),
 ): Promise<string | undefined> {
-  if (!requireTrust()) return undefined;
+  if (!(await ensureOnboardingTrust('Set Up Python Environment'))) return undefined;
+  checkContext();
   let envRoot = projectRoot
     ? path.join(projectRoot, '.venv')
     : path.join(context.globalStorageUri.fsPath, 'bootstrap-venv');
   for (;;) {
+    checkContext();
     const existing = await existingPython(envRoot);
+    checkContext();
     let repair = false;
     if (existing) {
       const report = await health(existing, bridge);
@@ -175,8 +181,10 @@ export async function setupEnvironment(
             : (report.message ?? 'This environment does not provide the required LHP integration'),
       });
       if (!choice) return undefined;
+      checkContext();
       if (choice.value === 'use') {
-        await persistInterpreter(projectRoot, context, existing);
+        await persistInterpreter(projectRoot, context, existing, checkContext);
+        checkContext();
         return existing;
       }
       if (choice.value === 'other') {
@@ -209,8 +217,10 @@ export async function setupEnvironment(
         );
       return undefined;
     }
-    const base = repair ? undefined : await basePython(projectRoot, context, bridge);
+    checkContext();
+    const base = repair ? undefined : await basePython(projectRoot, context, bridge, checkContext);
     if (!repair && !base) return undefined;
+    checkContext();
     const location = repair ? envRoot : path.dirname(envRoot);
     await mkdir(location, { recursive: true });
     const python = existing ?? pythonInVenv(envRoot);
@@ -227,9 +237,11 @@ export async function setupEnvironment(
           try {
             if (!repair && base) {
               progress.report({ message: 'Creating virtual environment' });
+              checkContext();
               await runPythonCommand(base, ['-m', 'venv', envRoot], location, controller.signal);
             }
             progress.report({ message: 'Installing the selected LHP integration build' });
+            checkContext();
             await runPythonCommand(
               python,
               ['-m', 'pip', 'install', '--disable-pip-version-check', '--no-input', source],
@@ -241,15 +253,19 @@ export async function setupEnvironment(
           }
         },
       );
+      checkContext();
       const report = await health(python, bridge);
       if (!report.compatible)
         throw new Error(
           report.message ?? 'The installed LHP build does not expose the required editor APIs.',
         );
-      await persistInterpreter(projectRoot, context, python);
+      checkContext();
+      await persistInterpreter(projectRoot, context, python, checkContext);
+      checkContext();
       void vscode.window.showInformationMessage(`LHP Python environment is ready at ${envRoot}.`);
       return python;
     } catch (error) {
+      checkContext();
       const choice = await vscode.window.showErrorMessage(
         error instanceof Error ? error.message : 'Environment setup failed.',
         'Retry setup',
@@ -271,12 +287,14 @@ function validFolderName(name: string): boolean {
 async function persistBundlePipelineConfig(
   root: string,
   context: vscode.ExtensionContext,
+  checkContext: () => void,
 ): Promise<boolean> {
   try {
     if (!(await stat(path.join(root, 'config', 'pipeline_config.yaml'))).isFile()) return false;
   } catch {
     return false;
   }
+  checkContext();
   const key = vscode.Uri.file(root).toString();
   const map = context.workspaceState.get<Record<string, string>>('lhp.pipelineConfigs', {});
   await context.workspaceState.update('lhp.pipelineConfigs', {
@@ -291,7 +309,9 @@ export async function createBundlePipelineConfig(
   root: string,
   catalog: string,
   schema: string,
+  checkContext = assertWorkspaceTrust,
 ): Promise<void> {
+  checkContext();
   const uri = vscode.Uri.file(path.join(root, 'config', 'pipeline_config.yaml'));
   try {
     if ((await stat(uri.fsPath)).isFile()) return;
@@ -307,6 +327,7 @@ export async function createBundlePipelineConfig(
       project_defaults: { serverless: true, channel: 'CURRENT', catalog, schema },
     }),
   );
+  checkContext();
   if (!(await vscode.workspace.applyEdit(edit)))
     throw new Error('VS Code could not create the active bundle pipeline configuration.');
 }
@@ -316,8 +337,10 @@ export async function createProject(
   context: vscode.ExtensionContext,
   bridge: BridgeClient,
   interpreter?: string,
+  checkContext = onboardingContext(),
 ): Promise<string | undefined> {
-  if (!requireTrust()) return undefined;
+  if (!(await ensureOnboardingTrust('Create Project'))) return undefined;
+  checkContext();
   const preferred = interpreter ?? context.globalState.get<string>(DEFAULT_INTERPRETER_KEY);
   const provided =
     preferred && (await health(preferred, bridge)).compatible ? preferred : undefined;
@@ -325,7 +348,8 @@ export async function createProject(
     void vscode.window.showWarningMessage(
       'The selected Python cannot run this LHP editor integration. Choose a compatible interpreter before creating the project.',
     );
-  const selectedPython = provided ?? (await selectInterpreter(undefined, context, bridge));
+  const selectedPython =
+    provided ?? (await selectInterpreter(undefined, context, bridge, checkContext));
   if (!selectedPython) return undefined;
   const mode = await vscode.window.showQuickPick(
     [
@@ -428,19 +452,35 @@ export async function createProject(
     bundleDefaults = { catalog: catalog.trim(), schema: schema.trim() };
   }
   try {
-    await bootstrapProject(root, projectName, bundle.value, selectedPython, bridge, content.value);
+    checkContext();
+    await bootstrapProject(
+      root,
+      projectName,
+      bundle.value,
+      selectedPython,
+      bridge,
+      content.value,
+      checkContext,
+    );
+    checkContext();
     try {
-      await persistInterpreter(root, context, selectedPython);
+      await persistInterpreter(root, context, selectedPython, checkContext);
     } catch {
       void vscode.window.showWarningMessage(
         'Project files were created, but the Python selection could not be saved. Select the interpreter for this project before editing.',
       );
     }
+    checkContext();
     if (bundle.value) {
       try {
         if (bundleDefaults)
-          await createBundlePipelineConfig(root, bundleDefaults.catalog, bundleDefaults.schema);
-        if (!(await persistBundlePipelineConfig(root, context)))
+          await createBundlePipelineConfig(
+            root,
+            bundleDefaults.catalog,
+            bundleDefaults.schema,
+            checkContext,
+          );
+        if (!(await persistBundlePipelineConfig(root, context, checkContext)))
           void vscode.window.showWarningMessage(
             'Project files were created, but no bundle pipeline configuration was found. Select a pipeline configuration before full generation.',
           );
@@ -450,6 +490,7 @@ export async function createProject(
         );
       }
     }
+    checkContext();
     void vscode.window.showInformationMessage(`Created LHP project ${projectName}.`);
     return root;
   } catch (error) {

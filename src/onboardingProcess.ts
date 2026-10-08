@@ -45,8 +45,10 @@ export async function bootstrapProject(
   interpreter: string,
   bridge: Pick<BridgeClient, 'call'>,
   sampleMode = false,
+  checkContext = () => {},
 ): Promise<void> {
   await assertEmptyTarget(directory);
+  checkContext();
   const response = await bridge.call({
     operation: 'init',
     interpreter,

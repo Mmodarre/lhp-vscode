@@ -53,6 +53,6 @@ jobs:
       - uses: actions/upload-artifact@v4
         if: runner.os == 'Linux'
         with:
-          name: lhp-vscode-0.2.0
-          path: .tmp/lhp-vscode-0.2.0.vsix
+          name: lhp-vscode-0.2.1
+          path: .tmp/lhp-vscode-0.2.1.vsix
           if-no-files-found: error

@@ -1,3 +1,9 @@
+# Patch 0.2.1: actionable onboarding trust
+
+Replace the new-folder Create Project dead end with the native Manage Workspace Trust action and explicit retry guidance. Keep Create Project, Select Python Interpreter and Set Up Python Environment reachable in Restricted Mode; their host guards block interpreter discovery, Python, settings and project writes until a fresh trusted invocation. Do not queue work behind trust changes. Recheck trust and workspace/project context before delayed onboarding side effects. Preserve all 0.2.0 capabilities and the public core pin. Verification includes cancellation, trust-manager return without consent, explicit trusted retry, stale-scope regressions, native Restricted Mode smoke, existing required gates and audited 0.2.1 packaging.
+
+---
+
 # Active implementation: approved 0.2.0 redesign
 
 User approval received on 8 October 2026 for the final v3 design and its full phased scope. [Approved design](docs/sidebar-redesign.md) is the feature/interaction source of truth. Existing 0.1.x delivery evidence below remains historical. Runtime version target is 0.2.0; delivery is an audited VSIX first, without Marketplace publication or merging.

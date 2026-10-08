@@ -2,7 +2,7 @@
   "name": "lhp-vscode",
   "displayName": "Lakehouse Plumber",
   "description": "Native YAML, guided graphs and forms for Lakehouse Plumber pipelines.",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "publisher": "Mmodarre",
   "license": "Apache-2.0",
   "repository": {
@@ -77,19 +77,19 @@
         "command": "lhp.selectInterpreter",
         "title": "Select Python Interpreter",
         "category": "LHP",
-        "enablement": "isWorkspaceTrusted && !lhp.operationRunning"
+        "enablement": "!lhp.operationRunning"
       },
       {
         "command": "lhp.setupEnvironment",
         "title": "Set Up Python Environment",
         "category": "LHP",
-        "enablement": "isWorkspaceTrusted && !lhp.operationRunning"
+        "enablement": "!lhp.operationRunning"
       },
       {
         "command": "lhp.createProject",
         "title": "Create Project",
         "category": "LHP",
-        "enablement": "isWorkspaceTrusted && !lhp.operationRunning"
+        "enablement": "!lhp.operationRunning"
       },
       {
         "command": "lhp.selectEnvironment",
@@ -652,7 +652,13 @@
     "viewsWelcome": [
       {
         "view": "lhp.configuration",
-        "contents": "Open a folder containing lhp.yaml, or create an LHP project.\n[Open Folder](command:vscode.openFolder)\n[Create Project](command:lhp.createProject)\n[Get Started](command:lhp.sidebar.help)"
+        "contents": "Open a folder containing lhp.yaml, or create an LHP project.\n[Open Folder](command:vscode.openFolder)\n[Create Project](command:lhp.createProject)\n[Get Started](command:lhp.sidebar.help)",
+        "when": "isWorkspaceTrusted"
+      },
+      {
+        "view": "lhp.configuration",
+        "contents": "This workspace is in Restricted Mode. Trust it to create a project or run Python.\n[Manage Workspace Trust](command:workbench.trust.manage)\nAfter trusting, run [Create Project](command:lhp.createProject) to continue.\n[Open Folder](command:vscode.openFolder)",
+        "when": "!isWorkspaceTrusted"
       },
       {
         "view": "lhp.pipelines",
@@ -660,7 +666,13 @@
       },
       {
         "view": "lhp.resources",
-        "contents": "Open an LHP project to browse templates, blueprints, presets and source files.\n[Open Folder](command:vscode.openFolder)\n[Create Project](command:lhp.createProject)"
+        "contents": "Open an LHP project to browse templates, blueprints, presets and source files.\n[Open Folder](command:vscode.openFolder)\n[Create Project](command:lhp.createProject)",
+        "when": "isWorkspaceTrusted"
+      },
+      {
+        "view": "lhp.resources",
+        "contents": "This workspace is in Restricted Mode. Trust it to create a project or run Python.\n[Manage Workspace Trust](command:workbench.trust.manage)\nAfter trusting, run [Create Project](command:lhp.createProject) to continue.\n[Open Folder](command:vscode.openFolder)",
+        "when": "!isWorkspaceTrusted"
       },
       {
         "view": "lhp.data",

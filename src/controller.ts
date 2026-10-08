@@ -5,6 +5,7 @@ import { operate, databricks } from './projectOperations';
 import { Problems } from './diagnostics';
 import { createProject, selectInterpreter, setupEnvironment } from './onboarding';
 import { dispatch } from './dispatch';
+import { ensureOnboardingTrust, onboardingContext } from './onboardingTrust';
 import { DesignerPanel } from './panel';
 import { ignoredProjectPath, relativePath } from './paths';
 import { PreviewDocuments } from './preview';
@@ -411,23 +412,33 @@ export class Controller implements vscode.Disposable {
     await this.refresh();
   }
   async interpreter(setup = false): Promise<void> {
-    this.requireTrust();
+    if (
+      !(await ensureOnboardingTrust(
+        setup ? 'Set Up Python Environment' : 'Select Python Interpreter',
+      ))
+    )
+      return;
     this.invalidate();
+    const project = this.project;
     const selected = await (setup ? setupEnvironment : selectInterpreter)(
-      this.project?.root,
+      project?.root,
       this.context,
       this.bridge,
+      onboardingContext(() => this.project === project),
     );
     if (selected || this.project) await this.refresh();
   }
   async create(): Promise<void> {
-    this.requireTrust();
+    if (!(await ensureOnboardingTrust('Create Project'))) return;
+    const checkContext = onboardingContext();
     const root = await createProject(
       this.context,
       this.bridge,
       this.snapshot?.context.runtime.interpreter,
+      checkContext,
     );
     if (!root) return;
+    checkContext();
     const uri = vscode.Uri.file(root);
     if (!vscode.workspace.getWorkspaceFolder(uri))
       vscode.workspace.updateWorkspaceFolders(vscode.workspace.workspaceFolders?.length ?? 0, 0, {

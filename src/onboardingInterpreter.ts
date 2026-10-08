@@ -3,6 +3,7 @@ import { stat } from 'node:fs/promises';
 import * as vscode from 'vscode';
 import type { BridgeClient } from './bridgeClient';
 import { isRecord } from './shared/guards';
+import { assertWorkspaceTrust } from './onboardingTrust';
 import { isSupportedPython, pythonInVenv } from './onboardingProcess';
 
 const INTERPRETERS_KEY = 'lhp.interpreters';
@@ -57,6 +58,7 @@ export async function candidates(
   projectRoot: string | undefined,
   context: vscode.ExtensionContext,
 ): Promise<Candidate[]> {
+  assertWorkspaceTrust();
   const resource = projectRoot ? vscode.Uri.file(projectRoot) : undefined;
   const configured = vscode.workspace.getConfiguration('lhp', resource).get<string>('pythonPath');
   const mapped = projectRoot
@@ -133,6 +135,7 @@ export async function health(
   interpreter: string,
   bridge: BridgeClient,
 ): Promise<{ compatible: boolean; version?: string; message?: string }> {
+  assertWorkspaceTrust();
   try {
     const result = await bridge.call({ operation: 'health', interpreter, timeoutMs: 12_000 });
     if (!isRecord(result))
@@ -152,7 +155,9 @@ export async function persistInterpreter(
   projectRoot: string | undefined,
   context: vscode.ExtensionContext,
   interpreter: string,
+  checkContext = assertWorkspaceTrust,
 ): Promise<void> {
+  checkContext();
   if (!projectRoot) {
     await context.globalState.update(DEFAULT_INTERPRETER_KEY, interpreter);
     return;
@@ -161,6 +166,7 @@ export async function persistInterpreter(
   const map = context.workspaceState.get<Record<string, string>>(INTERPRETERS_KEY, {});
   await context.workspaceState.update(INTERPRETERS_KEY, { ...map, [key]: interpreter });
   const folder = vscode.workspace.getWorkspaceFolder(vscode.Uri.file(projectRoot));
+  checkContext();
   if (folder && path.resolve(folder.uri.fsPath) === path.resolve(projectRoot)) {
     await vscode.workspace
       .getConfiguration('lhp', folder.uri)
@@ -172,7 +178,9 @@ export async function basePython(
   projectRoot: string | undefined,
   context: vscode.ExtensionContext,
   bridge: BridgeClient,
+  checkContext = assertWorkspaceTrust,
 ): Promise<string | undefined> {
+  checkContext();
   const found = await candidates(projectRoot, context);
   const options: InterpreterPick[] = found.map((item) => ({
     label: item.label,
@@ -189,6 +197,7 @@ export async function basePython(
     if (!picked) return undefined;
     const interpreter = picked.action === 'browse' ? await browsePython() : picked.path;
     if (!interpreter) continue;
+    checkContext();
     const report = await health(interpreter, bridge);
     if (report.version && isSupportedPython(report.version)) return interpreter;
     void vscode.window.showWarningMessage(

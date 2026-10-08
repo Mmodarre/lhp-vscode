@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.2.1
+
+- In Restricted Mode, project creation and Python onboarding offer Manage Workspace Trust with explicit retry instructions. Opening trust management or dismissing the prompt does not start Python or write project files.
+- Reject trust or workspace/project changes before delayed onboarding work and project attachment.
+
 ## 0.2.0
 
 - Replace the initial single project tree with approved native Configuration, Pipelines, Resources, Data and Generated Output views for the selected project; use the exact LHP identity and accessible theme-aware designer styling.

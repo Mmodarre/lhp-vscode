@@ -1,3 +1,18 @@
+# Patch 0.2.1 acceptance checklist
+
+- [x] Replace the onboarding trust dead end with native Manage Workspace Trust and explicit retry.
+- [x] Keep untrusted cancellation and trust-manager navigation free of Python, settings and project writes.
+- [x] Reject changed trust/workspace/project scope before delayed onboarding work or new-root attachment.
+- [x] Add focused controller/onboarding regressions and trusted retry coverage.
+- [x] Complete type/lint/format/build/unit/bridge/native/audit/package gates and independent review.
+- [ ] Verify desktop CI, commit/push and deliver the audited 0.2.1 VSIX with exact evidence.
+
+Local Linux ARM64 verification on 8 October 2026: typecheck, lint, formatting and build passed; 101 unit/React/real-adapter tests across 20 files and ten Python bridge tests passed; native VS Code 1.106.0 / Red Hat YAML 1.24.0 integration exited successfully; the production audit reported zero vulnerabilities. A separate isolated native empty-folder test kept workspace trust enabled and verified prompt dismissal, native trust management without continuation, granting trust without automatic work, and a fresh Create Project retry reaching the interpreter picker. Independent code review found no remaining trust-boundary blocker. Packaging passed the 20-file allowlist audit. Desktop CI and the final delivered artifact identity are still pending.
+
+Previous 0.2.0 verification and artifact identity below remain historical.
+
+---
+
 # Active 0.2.0 acceptance checklist
 
 Approved final v3 design: [scope and decisions](docs/sidebar-redesign.md). No phase is silently deferred. Historical 0.1.x evidence follows this active checklist.

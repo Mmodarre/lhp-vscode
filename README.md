@@ -11,6 +11,8 @@ This integration targets desktop VS Code on macOS, Windows and Linux. Distributi
 3. Open a local folder. Choose the **Lakehouse Plumber** Activity Bar icon to browse the selected project. Contained source browsing works without Python or workspace trust; trust is required for execution and edits.
 4. Select an existing compatible Python environment or use **Set Up Python Environment**. Python 3.11 or newer is required.
 
+In Restricted Mode, **Create Project**, **Select Python Interpreter** and **Set Up Python Environment** offer **Manage Workspace Trust**. Review the folder there and grant trust only if you trust its contents, then run the LHP command again. Opening the trust editor or dismissing the prompt ends the current command without running Python or writing project files. Version 0.2.1 adds this recovery path for newly opened folders.
+
 The extension requires the unreleased LHP 0.9.3 editor integration build at commit [`98d285ab8a7606867abb5708f2715ebe31a9befc`](https://github.com/Mmodarre/Lakehouse_Plumber/commit/98d285ab8a7606867abb5708f2715ebe31a9befc). Its distribution metadata still reports `0.9.2`; compatibility checks verify the public editor API capabilities. The ordinary PyPI 0.9.2 package does not contain those APIs. Guided setup installs the exact integration commit in a chosen virtual environment. Git is required for that installation; a compatible local wheel or source checkout can also be selected.
 
 [Read the user guide](docs/USER_GUIDE.md) for the complete first-pipeline and existing-project workflows.
@@ -60,6 +62,6 @@ On headless Linux, use `xvfb-run -a npm run test:extension`. The runner download
 
 The [0.2.0 push build](https://github.com/Mmodarre/lhp-vscode/actions/runs/37736437280) and [PR build](https://github.com/Mmodarre/lhp-vscode/actions/runs/37736442314) both passed on Linux, macOS and Windows, including 84 unit/React/adapter tests without skips, ten Python bridge tests, real VS Code integration and the production audit with zero vulnerabilities. Native checks cover five-view navigation, YAML help, inspectors, source edits, generated preview comparison and project isolation. Exact artifact identity and runtime revision are recorded in [TODO.md](TODO.md).
 
-`npm run package` creates `.tmp/lhp-vscode-0.2.0.vsix` and audits its contents. Only bundled host/webview JavaScript, CSS, the Python adapter, media and notices belong in the VSIX. Python/LHP itself is installed separately. Development dependencies, tests, project files and local paths must not be shipped.
+`npm run package` creates `.tmp/lhp-vscode-0.2.1.vsix` and audits its contents. Only bundled host/webview JavaScript, CSS, the Python adapter, media and notices belong in the VSIX. Python/LHP itself is installed separately. Development dependencies, tests, project files and local paths must not be shipped.
 
 See [PLAN.md](PLAN.md), [TODO.md](TODO.md), [architecture](docs/ARCHITECTURE.md) and [research](docs/RESEARCH.md). Apache-2.0; upstream and bundled dependency notices are retained.
