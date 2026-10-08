@@ -45,6 +45,7 @@ describe('project graph navigation', () => {
     fireEvent.click(screen.getAllByRole('button', { name: 'orders_bronze' })[0]!)
     expect((screen.getByRole('button', { name: 'Undo' }) as HTMLButtonElement).disabled).toBe(false)
     expect((screen.getByRole('button', { name: /Add action/ }) as HTMLButtonElement).disabled).toBe(true)
+    expect((screen.getByRole('button', { name: 'Generate full project…' }) as HTMLButtonElement).disabled).toBe(true)
     expect(screen.getByText(/last valid project snapshot/)).toBeTruthy()
   })
 

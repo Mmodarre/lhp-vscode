@@ -100,7 +100,7 @@ export function App() {
   const canEdit = !!snapshot?.context.trusted && !!snapshot?.context.runtime.compatible && !snapshot.stale && !syntaxError && !pending && !status?.running
   const canUndo = !!snapshot?.context.trusted && !pending && !status?.running
   const dirtyCount = snapshot?.documents.filter((item) => item.dirty).length ?? 0
-  const canGenerate = !!snapshot?.context.trusted && !!snapshot.context.runtime.compatible && !status?.running && !pending
+  const canGenerate = !!snapshot?.context.trusted && !!snapshot.context.runtime.compatible && !snapshot.stale && !syntaxError && !status?.running && !pending
   const previewStale = !!preview && !!snapshot && snapshot.documents.some((doc) => preview.documentVersions[doc.path] !== doc.version)
   const choosePipeline = (name: string) => { setPipelineId(name); setFlowgroupId(''); setActionId(''); setEdgeId(''); setMode('pipeline'); setShowAddAction(false) }
   const chooseFlowgroup = (id: string) => { setFlowgroupId(id); setActionId(''); setEdgeId(''); setMode('flowgroup'); setShowAddAction(false) }
@@ -213,7 +213,7 @@ export function App() {
         </>}
         {mode === 'bronze' && <BronzeWizard pipelines={snapshot.pipelines.map((item) => item.name)} busy={!!pending}
           onCancel={() => setMode('pipeline')} onCreate={(values) => send({ type: 'createBronze', values }, true)} />}
-        {(mode === 'template' || mode === 'blueprint') && <InstanceWizard kind={mode} catalog={snapshot.catalog}
+        {(mode === 'template' || mode === 'blueprint') && <InstanceWizard key={mode} kind={mode} catalog={snapshot.catalog}
           pipelines={snapshot.pipelines.map((item) => item.name)} busy={!!pending}
           onCancel={() => setMode('pipeline')} onCreate={createInstance} onOpen={open} />}
         {mode === 'preview' && <div className="wizard" style={{ margin: 0, width: '100%' }}><h1>Generated output preview</h1>

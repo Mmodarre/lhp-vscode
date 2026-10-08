@@ -238,7 +238,10 @@ function validFolderName(name: string): boolean {
 /** Bootstrap only an explicitly selected absent or empty target. The caller attaches the new root. */
 export async function createProject(context: vscode.ExtensionContext, bridge: BridgeClient, interpreter?: string): Promise<string | undefined> {
   if (!requireTrust()) return undefined;
-  const selectedPython = interpreter ?? await selectInterpreter(undefined, context, bridge);
+  const preferred = interpreter ?? context.globalState.get<string>(DEFAULT_INTERPRETER_KEY);
+  const provided = preferred && (await health(preferred, bridge)).compatible ? preferred : undefined;
+  if (preferred && !provided) void vscode.window.showWarningMessage('The selected Python cannot run this LHP editor integration. Choose a compatible interpreter before creating the project.');
+  const selectedPython = provided ?? await selectInterpreter(undefined, context, bridge);
   if (!selectedPython) return undefined;
   const mode = await vscode.window.showQuickPick([
     { label: 'Create a new project folder', value: 'new' },

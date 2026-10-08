@@ -7,6 +7,7 @@ describe('files-to-bronze guide', () => {
   it('requires key inputs and sends a precise bronze request', () => {
     const create = vi.fn()
     render(<BronzeWizard pipelines={['bronze_load']} busy={false} onCancel={() => {}} onCreate={create} />)
+    expect(screen.getByRole('combobox', { name: 'File format' }).querySelectorAll('option')).toHaveLength(6)
     expect((screen.getByRole('button', { name: 'Create flowgroup' }) as HTMLButtonElement).disabled).toBe(true)
     fireEvent.change(screen.getByLabelText(/Flowgroup name/), { target: { value: 'orders_bronze' } })
     fireEvent.change(screen.getByLabelText(/Landing files path/), { target: { value: '${landing_volume}/orders/' } })

@@ -1,7 +1,7 @@
 import { useState, type FormEvent } from 'react'
 import type { BronzeRequest } from '../../../src/shared/protocol'
 
-const FORMATS = ['csv', 'json', 'parquet', 'avro', 'orc', 'text', 'xml']
+const FORMATS = ['csv', 'json', 'parquet', 'avro', 'orc', 'text']
 
 export function BronzeWizard({ pipelines, busy, onCancel, onCreate }: {
   pipelines: string[]

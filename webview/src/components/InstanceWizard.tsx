@@ -20,7 +20,7 @@ export function InstanceWizard({ kind, catalog, pipelines, busy, onCancel, onCre
   const selected = useMemo(() => definitions.find((item) => item.name === definition), [definitions, definition])
   const invalidPath = targetPath.startsWith('/') || targetPath.includes('..') || !/\.ya?ml$/i.test(targetPath)
   const requiredMissing = selected?.fields.some((field) => field.required && (fieldValue(parameters, field.name) === undefined || fieldValue(parameters, field.name) === '')) ?? false
-  const canSubmit = !!selected && !!name.trim() && !!pipeline.trim() && !invalidPath && !requiredMissing && !advancedError && !Object.values(invalid).some(Boolean)
+  const canSubmit = !!selected && (kind === 'blueprint' || (!!name.trim() && !!pipeline.trim())) && !invalidPath && !requiredMissing && !advancedError && !Object.values(invalid).some(Boolean)
   const changeParameters = (value: JsonObject) => { setParameters(value); setAdvancedDraft(JSON.stringify(value, null, 2)) }
   const changeAdvanced = (value: string) => {
     setAdvancedDraft(value)
@@ -34,7 +34,7 @@ export function InstanceWizard({ kind, catalog, pipelines, busy, onCancel, onCre
   const submit = (event: FormEvent) => {
     event.preventDefault()
     if (!canSubmit || busy) return
-    onCreate({ kind, definition, name: name.trim(), pipeline: pipeline.trim(), targetPath: targetPath.trim(), parameters })
+    onCreate({ kind, definition, name: kind === 'template' ? name.trim() : '', pipeline: kind === 'template' ? pipeline.trim() : '', targetPath: targetPath.trim(), parameters })
   }
   return <form className="wizard" onSubmit={submit} aria-label={`Create ${kind} instance`}>
     <h1>New {kind} instance</h1>
@@ -46,13 +46,13 @@ export function InstanceWizard({ kind, catalog, pipelines, busy, onCancel, onCre
         </select>{selected?.description && <span className="field-help">{selected.description}</span>}
         {selected && <button className="link-button" type="button" onClick={() => onOpen(selected.source)}>Open definition source</button>}
       </div>
-      <div className="wizard-grid">
+      {kind === 'template' && <div className="wizard-grid">
         <div className="field"><label className="field-label" htmlFor="instance-name">Instance name <span className="required">*</span></label>
           <input id="instance-name" className="input" value={name} onChange={(event) => setName(event.target.value)} required /></div>
         <div className="field"><label className="field-label" htmlFor="instance-pipeline">Pipeline <span className="required">*</span></label>
           <input id="instance-pipeline" className="input" value={pipeline} onChange={(event) => setPipeline(event.target.value)} list="instance-pipelines" required />
           <datalist id="instance-pipelines">{pipelines.map((value) => <option value={value} key={value} />)}</datalist></div>
-      </div>
+      </div>}
       <div className="field"><label className="field-label" htmlFor="instance-target">New instance YAML path <span className="required">*</span></label>
         <input id="instance-target" className="input mono" value={targetPath} placeholder="pipelines/bronze/orders.yaml" onChange={(event) => setTargetPath(event.target.value)} required aria-invalid={!!targetPath && invalidPath} />
         <span className="field-help">Project-relative .yaml or .yml path. Existing files will not be replaced.</span>
