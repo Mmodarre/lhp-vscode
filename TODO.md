@@ -10,14 +10,14 @@ Approved final v3 design: [scope and decisions](docs/sidebar-redesign.md). No ph
 - [x] E: scoped YAML classification, CST context, references/tokens/files, snippets, precise hover/definitions and safe deterministic fixes.
 - [x] Verify complete design matrix, including honest wheel/sandbox/cloud/filter boundaries and every resource/config home.
 - [x] Focused unit/bridge/native integration gates; no E2E changes without explicit user approval.
-- [ ] Final type/lint/format/build/tests/audit; all three desktop CI jobs; VSIX asset/path/secret audit.
-- [ ] Root independent review, coordinated scoped commits/push, truthful docs/evidence and audited 0.2.0 VSIX delivery.
+- [x] Final type/lint/format/build/tests/audit; all three desktop CI jobs; VSIX asset/path/secret audit.
+- [x] Root independent review, coordinated scoped commits/push, truthful docs/evidence and audited 0.2.0 VSIX delivery.
 
-Root independently verified the frozen implementation on Linux ARM64 on 8 October 2026: typecheck, lint, formatting, production build and diff checks passed; all **82 unit/React/real-adapter tests across 18 files passed without skips**, all **nine Python bridge tests passed**, and the production dependency audit reported **zero vulnerabilities**. The fresh real VS Code 1.106.0 / Red Hat YAML 1.24.0 integration suite exited successfully, including five-view navigation, structural YAML providers, template/config/preset inspection, generated-source provenance/diff, native draft creation, undo/redo, stale guards and project isolation. Actual native workbench captures verified the approved identity and graph layout in dark, light and high-contrast themes.
+Runtime **`c931f99a62eb4e3a4f668e18d5d096d006e2afd4`** passed both the [push matrix](https://github.com/Mmodarre/lhp-vscode/actions/runs/37736437280) and [PR matrix](https://github.com/Mmodarre/lhp-vscode/actions/runs/37736442314) on **Linux, macOS and Windows** on 8 October 2026. Each platform passed typecheck, lint, formatting, production build, **84 unit/React/real-adapter tests across 19 files without skips**, **ten Python bridge tests**, the real VS Code 1.106.0 / Red Hat YAML 1.24.0 integration suite and the production dependency audit with **zero vulnerabilities**. Native coverage includes five-view navigation, structural YAML providers, template/config/preset inspection, generated-source provenance/diff, Windows preview path spelling, native draft creation, undo/redo, stale guards, overlapping discovery and nested-project isolation. Root independently reviewed the implementation, native dark/light/high-contrast captures, CI results and final archive.
 
-The read-only public performance check preserved **4,017 flowgroups, 18,766 actions, 17,961 action edges, 3,212 flowgroup edges and 2,813 native document versions**. It completed in **20.119 seconds**, with **41,921,057 bytes** in the webview snapshot and **445,960,192 bytes** host RSS in that shared Linux ARM64 run. These are measurements, not fixed performance guarantees. The Python decoded-response budget remains 32 MiB and never truncates a graph. The independent physical index and on-demand Data inspection keep their separate documented bounds. The core integration worktree remains clean; original LHP, website and core E2E files were not modified.
+The read-only public performance check preserved **4,017 flowgroups, 18,766 actions, 17,961 action edges, 3,212 flowgroup edges and 2,813 native document versions**. It completed in **20.119 seconds**, with **41,921,057 bytes** in the webview snapshot and **445,960,192 bytes** host RSS in that shared Linux ARM64 run. These are measurements, not fixed performance guarantees. The Python decoded-response budget remains 32 MiB and never truncates a graph. Physical inventory, classification, YAML assistance and Data inspection keep their separately documented bounds. Core, website and existing E2E files were unchanged; the original dirty checkout was preserved.
 
-Desktop CI and the final 0.2.0 artifact audit are pending this implementation commit. Source review found no private local paths or project markers in the changed public text files. No Marketplace publication or merge is authorised by this delivery step.
+The delivered [CI-produced 0.2.0 VSIX](https://github.com/Mmodarre/lhp-vscode/actions/runs/37736437280/artifacts/11532285880) is **`.tmp/lhp-vscode-0.2.0.vsix`**, artifact **11532285880**, containing **20 allowlisted files / 284,416 bytes**, SHA256 **`4b47ff72b004afb7d53ea4b329a88ce58bd01d0ae71ea84497bdf28a491488e8`**. Independent checks confirmed version 0.2.0, exactly five native views, the exact approved LHP brand assets, both Python bridge modules, archive integrity and exclusion of private paths, development dependencies, source maps, tests and scratch data. The artifact is from runtime commit `c931f99a62eb4e3a4f668e18d5d096d006e2afd4`; subsequent delivery documentation commits do not change its bytes. [PR #1](https://github.com/Mmodarre/lhp-vscode/pull/1) remains unmerged, with no Marketplace publication.
 
 ---
 
@@ -37,6 +37,7 @@ Local Linux ARM64 verification on 8 October 2026: typecheck, lint, formatting an
 The delivered [CI-produced 0.1.2 artifact](https://github.com/Mmodarre/lhp-vscode/actions/runs/37725124804/artifacts/11526939315) is `.tmp/lhp-vscode-0.1.2.vsix`, with 18 allowlisted files, 232,044 bytes and SHA256 `02a64660e4338bdfeef3fc56e361e23d8b0cf50358fca1e1f106e73417e7553d`. The native Activity Bar SVG is included; development dependencies, tests and local paths are excluded. Later delivery commits update documentation only. YAML language features are unchanged; the guide distinguishes existing help from suggested future improvements.
 
 ## 0.1.1 reported refresh/notice defects
+
 - [x] Reproduce original oversized response and preserve full canonical graph counts.
 - [x] Remove duplicate transport data, keep the 32 MiB byte budget, reject malformed/truncated UTF-8 safely, and support graph arrays above 10,000 nodes.
 - [x] Publish current runtime health independently; distinguish loading, cancellation, transport failure and real source diagnostics.
@@ -45,6 +46,7 @@ The delivered [CI-produced 0.1.2 artifact](https://github.com/Mmodarre/lhp-vscod
 - [x] Complete patch desktop CI and audit/deliver `lhp-vscode-0.1.1.vsix`.
 
 ## Repository and shared contract
+
 - [x] Confirm new local and public repository names do not already exist.
 - [x] Create repository, Apache licence, scoped rules and implementation plan.
 - [x] Publish and agree shared protocol with GUI/core implementers.
@@ -52,6 +54,7 @@ The delivered [CI-produced 0.1.2 artifact](https://github.com/Mmodarre/lhp-vscod
 - [x] Add package, build, lint/typecheck/test and CI scaffolding.
 
 ## Host and adapter
+
 - [x] Trusted project discovery and per-project/environment context.
 - [x] Interpreter detection/selection; compatible version/capability diagnostics.
 - [x] Guided venv/install, existing local runtime, project creation and bronze ingestion.
@@ -63,6 +66,7 @@ The delivered [CI-produced 0.1.2 artifact](https://github.com/Mmodarre/lhp-vscod
 - [x] Databricks extension/project handoff, no remote execution.
 
 ## GUI integration
+
 - [x] Pipeline and flowgroup navigation; action graph.
 - [x] Add/delete/duplicate/configure/connect/disconnect actions.
 - [x] Native SQL/Python/schema/expectations/config source opening per action.
@@ -71,6 +75,7 @@ The delivered [CI-produced 0.1.2 artifact](https://github.com/Mmodarre/lhp-vscod
 - [x] Environment/project/runtime state, stale state, errors and unsupported capabilities.
 
 ## Verification and delivery
+
 - [x] Unit and integration tests (protocol, paths, edits, bridge).
 - [x] Extension-host and GUI interaction tests.
 - [x] Typecheck/lint/build and production dependency audit.
