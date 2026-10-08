@@ -2,18 +2,32 @@
 
 The designer shows the same project as two connected graphs: flowgroups inside a pipeline, then actions inside a flowgroup. YAML and related SQL, Python, schema, and expectations files open in native VS Code editors. Your project files remain the source of truth.
 
-Extension **0.1.1** runs in local desktop VS Code with a local Python 3.11 or newer interpreter. Open a trusted folder. The [Red Hat YAML extension](https://marketplace.visualstudio.com/items?itemName=redhat.vscode-yaml) supplies YAML schema support and is an extension dependency. The Python environment must contain the reviewed **LHP editor integration commit from the 0.9.3 development line**. That Git build currently reports package metadata **0.9.2**; the extension checks for the required editor APIs, so this version label alone does not indicate a wrong installation. Standard published PyPI 0.9.2 lacks those APIs.
+Extension **0.1.2** runs in local desktop VS Code with a local Python 3.11 or newer interpreter. Download a completed 0.1.2 VSIX from the [CI workflow](https://github.com/Mmodarre/lhp-vscode/actions/workflows/ci.yml), or build from source. Open a trusted folder. The [Red Hat YAML extension](https://marketplace.visualstudio.com/items?itemName=redhat.vscode-yaml) supplies YAML schema support and is an extension dependency. The Python environment must contain the reviewed **LHP editor integration commit from the 0.9.3 development line**. That Git build currently reports package metadata **0.9.2**; the extension checks for the required editor APIs, so this version label alone does not indicate a wrong installation. Standard published PyPI 0.9.2 lacks those APIs.
 
 ## Open an existing project
 
 1. Open the project folder, or a parent workspace folder, containing `lhp.yaml`. If several LHP projects exist in the workspace, use **LHP: Select Project** or the project selector in the designer.
-2. Run **LHP: Open Pipeline Designer** from the Command Palette. The graph will load when a compatible Python runtime is available.
+2. Choose **Lakehouse Plumber** in the Activity Bar to open the native **Projects** tree. You can also run **LHP: Open Pipeline Designer** from the Command Palette. The graph will load when a compatible Python runtime is available.
 3. If the runtime notice appears, use **LHP: Select Python Interpreter**. The picker offers a previously saved project interpreter, `lhp.pythonPath`, an existing project `.venv`, the Python extension selection, and Python on your `PATH`. It checks compatibility before saving the choice for this project.
 4. If none is compatible, run **LHP: Set Up Python Environment**. Choose a Python 3.11+ base interpreter and a reviewed integration source. The installer creates a `.venv` in the project by default. A pinned reviewed Git build is offered only when this extension version includes its reviewed commit; otherwise choose a compatible local wheel or source checkout. Installation uses that selected environment, not a global `pip install`.
 
 An existing `.venv` is never silently overwritten. You can use a compatible one, explicitly install or repair LHP in it, or create an environment in another folder. If creation or installation stops midway, choose **Retry setup** or **Choose another folder** in the error prompt. A partial folder with no Python executable is kept intact; choose a new location rather than deleting files by hand. If setup fails, the prompt provides a short cause category, such as certificate, network, Git, pip, permissions, or Python compatibility. Private installer output is not shown in the designer.
 
 The interpreter chosen for a project is saved per project. You can also configure `lhp.pythonPath` for a workspace folder. A project `.venv` is detected automatically when no saved project choice or setting takes precedence.
+
+## Navigate with the Project tree
+
+The **Lakehouse Plumber** Activity Bar icon opens one native **Projects** tree. Expand the active project, then a pipeline, flowgroup, and action to see its referenced SQL, Python, schema, expectations, configuration, or shared-definition files when LHP reports them. Only expanded levels are populated. Other workspace projects stay collapsed until you select one, so opening the tree does not load their Python runtime.
+
+Select a pipeline to open its graph in the existing designer. Select a flowgroup, action, or related file to open its source in a native editor. For a flowgroup or action, use its **Open in Designer** context action to focus that graph and inspector; the source remains the same VS Code document. A missing related file is marked and cannot be opened until you create it. Shared template and blueprint actions link to their definition and instance files rather than pretending the expanded action is directly editable.
+
+The tree title offers **Open Pipeline Designer**, **Refresh Project**, and **Cancel Current Operation** when applicable. Its overflow menu includes validation, preview, full generation, environment selection, Python setup, project creation, and Databricks handoff. Tree items have context actions for source and designer navigation. These are VS Code command shortcuts, not new default keyboard bindings; use **Keyboard Shortcuts** to assign keys to the existing `LHP` commands if desired. When no project is found, the tree offers create/open links. Loading, unavailable runtime, failed refresh and stale-graph notices appear in the view without replacing the last valid project structure.
+
+## Get YAML help in the native editor
+
+Install the required **YAML by Red Hat** extension and open a YAML file inside an LHP project. LHP associates runtime-provided schemas with `lhp.yaml`, pipeline/flowgroup files, reusable definitions, substitutions, schema files, and known configuration files. Use VS Code's **Trigger Suggest** command for schema-backed keys and values; hover a supported action field for its description, and use **Go to Definition** on recognised project names or action outputs. Project validation also reports LHP issues in the **Problems** panel. These features work on the native YAML document, including unsaved edits where the LHP runtime supports them.
+
+The LHP-specific value suggestions currently inspect the text before the cursor on one line, and output-name suggestions cover the loaded project. They can be broad when names repeat or when text resembles a YAML key inside a comment or string. Go to Definition can likewise show several same-named outputs. Check the target and run **Validate Project** for authoritative LHP feedback. Runtime-derived schemas and catalogue help become available after a compatible Python runtime loads the project; the base YAML editor remains usable while that setup is incomplete.
 
 ## Create a new project and the first bronze flowgroup
 

@@ -1,4 +1,4 @@
-import type { HostMessage, WebviewRequest } from '../../src/shared/protocol';
+import type { DesignerSelection, HostMessage, WebviewRequest } from '../../src/shared/protocol';
 
 interface VsCodeApi {
   postMessage(message: WebviewRequest): void;
@@ -39,6 +39,17 @@ function snapshotShape(value: unknown): boolean {
   );
 }
 
+function selectionShape(value: unknown): value is DesignerSelection {
+  return (
+    record(value) &&
+    typeof value.projectId === 'string' &&
+    Number.isSafeInteger(value.revision) &&
+    (value.pipeline === undefined || typeof value.pipeline === 'string') &&
+    (value.flowgroupId === undefined || typeof value.flowgroupId === 'string') &&
+    (value.actionId === undefined || typeof value.actionId === 'string')
+  );
+}
+
 export function isHostMessage(value: unknown): value is HostMessage {
   if (!record(value) || typeof value.type !== 'string') return false;
   switch (value.type) {
@@ -47,8 +58,11 @@ export function isHostMessage(value: unknown): value is HostMessage {
         typeof value.protocolVersion === 'number' &&
         Array.isArray(value.projects) &&
         typeof value.trusted === 'boolean' &&
-        (value.snapshot === undefined || snapshotShape(value.snapshot))
+        (value.snapshot === undefined || snapshotShape(value.snapshot)) &&
+        (value.selection === undefined || selectionShape(value.selection))
       );
+    case 'select':
+      return selectionShape(value.selection);
     case 'snapshot':
       return snapshotShape(value.snapshot);
     case 'result':

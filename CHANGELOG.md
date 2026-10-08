@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.1.2 (in development)
+
+- Add a native Lakehouse Plumber Activity Bar Project tree for projects, pipelines, flowgroups, actions and related source files. Expand nodes on demand; opening the tree does not load inactive projects.
+- Add tree title, overflow and item context shortcuts for the existing designer, refresh, validation, preview, generation, environment, setup and Databricks workflows. No default keyboard bindings are imposed.
+- Focus the existing designer graph and inspector from a tree item, while opening YAML and related files in native VS Code editors. Reject stale tree references after project changes.
+- Document the existing schema-backed YAML editing help and the current scope of LHP-specific value suggestions and definitions.
+
 ## 0.1.1
 
 - Fix large-project refresh by projecting unused duplicate API data out of the wire response, validating canonical graph arrays independently of webview request limits, and decoding bounded UTF-8 output incrementally.

@@ -71,6 +71,65 @@ describe('project graph navigation', () => {
     });
   });
 
+  it('focuses a sidebar selection only in its matching project and graph revision', async () => {
+    render(<App />);
+    const snapshot = demoSnapshot();
+    emit({
+      type: 'bootstrap',
+      protocolVersion: PROTOCOL_VERSION,
+      projects: [snapshot.context.project],
+      snapshot,
+      trusted: true,
+      selection: {
+        projectId: 'demo',
+        revision: 7,
+        pipeline: 'bronze_load',
+        flowgroupId: 'orders',
+        actionId: 'orders:cleanse',
+      },
+    });
+    await screen.findByText('orders_bronze · actions');
+    expect(screen.getByRole('heading', { name: 'cleanse_orders' })).toBeTruthy();
+    expect(posted.mock.calls.map(([message]) => message.type)).not.toContain('openSource');
+
+    emit({
+      type: 'select',
+      selection: { projectId: 'demo', revision: 6, pipeline: 'silver_curate' },
+    });
+    await waitFor(() => expect(screen.getByText('orders_bronze · actions')).toBeTruthy());
+    emit({
+      type: 'select',
+      selection: { projectId: 'another-project', revision: 7, pipeline: 'silver_curate' },
+    });
+    await waitFor(() => expect(screen.getByText('orders_bronze · actions')).toBeTruthy());
+    emit({
+      type: 'select',
+      selection: { projectId: 'demo', revision: 7, pipeline: 'silver_curate' },
+    });
+    await screen.findByText('silver_curate · flowgroups');
+  });
+
+  it('clears the previous project graph when a new project bootstraps before loading', async () => {
+    render(<App />);
+    const snapshot = demoSnapshot();
+    emit({
+      type: 'bootstrap',
+      protocolVersion: PROTOCOL_VERSION,
+      projects: [snapshot.context.project],
+      snapshot,
+      trusted: true,
+    });
+    await screen.findByText('bronze_load · flowgroups');
+    emit({
+      type: 'bootstrap',
+      protocolVersion: PROTOCOL_VERSION,
+      projects: [{ id: 'second', name: 'Second', rootLabel: 'second/' }],
+      trusted: true,
+    });
+    await waitFor(() => expect(screen.queryByText('bronze_load · flowgroups')).toBeNull());
+    expect(screen.getByRole('heading', { name: 'Choose an LHP project' })).toBeTruthy();
+  });
+
   it('keeps native undo available while invalid YAML pauses graph mutations', async () => {
     render(<App />);
     const snapshot = demoSnapshot('stale');

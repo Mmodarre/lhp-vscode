@@ -1,5 +1,16 @@
 # Implementation checklist
 
+## 0.1.2 native Project tree and command shortcuts
+
+- [x] Contribute one native LHP Activity Bar container and lazy Project tree, using the existing designer and guarded native source navigation.
+- [x] Add tree title, overflow and context actions for existing commands without assigning global keyboard shortcuts.
+- [x] Add project/revision-checked graph selection and clear the previous project graph during a new-project bootstrap.
+- [x] Cover lazy hierarchy, inactive projects, shared-source files, stale/forged references, same-revision file replacement and view states in unit tests.
+- [x] Pass real VS Code tree/source/multi-document/rapid-selection integration and webview focus tests on the updated source.
+- [ ] Complete three-platform CI, production audit and packaged 0.1.2 VSIX inspection; record exact revision, artifact link and checksum.
+
+Local Linux ARM64 verification on 8 October 2026: typecheck, lint, formatting and build passed; 48 unit/React/adapter tests across 12 files passed, six Python bridge tests passed, production audit reported zero vulnerabilities, and the real VS Code 1.106.0/Red Hat YAML 1.24.0 extension-host suite exited successfully. The sidebar suite exercised actual TreeView focus/reveal without another refresh, native multi-document YAML opening, stale references, rapid selection before the designer ready handshake and inactive-project isolation. The synthetic model check retained 4,017 flowgroups and 18,766 actions without creating action rows until their flowgroup was expanded. Cross-platform CI and the 0.1.2 package audit are still pending.
+
 ## 0.1.1 reported refresh/notice defects
 - [x] Reproduce original oversized response and preserve full canonical graph counts.
 - [x] Remove duplicate transport data, keep the 32 MiB byte budget, reject malformed/truncated UTF-8 safely, and support graph arrays above 10,000 nodes.

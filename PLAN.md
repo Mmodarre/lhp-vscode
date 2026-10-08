@@ -1,6 +1,6 @@
 # LHP VS Code implementation plan
 
-Status: implementation and desktop verification complete. Delivery: audited VSIX and reviewable public source in the extension draft PR, no extension merge or Marketplace publication.
+Status: 0.1.1 desktop verification complete; 0.1.2 native sidebar and command-shortcut update in progress. Delivery remains an audited VSIX and reviewable public source in the extension draft PR, with no Marketplace publication.
 
 ## Product and release boundary
 
@@ -66,6 +66,14 @@ All graph capabilities are in scope: project pipelines, pipeline-to-flowgroup dr
 The public editor API dependency is pinned to core commit `98d285ab8a7606867abb5708f2715ebe31a9befc`, reviewed and pushed on 8 October 2026. Core package metadata remains 0.9.2; capability checks and installation text explicitly distinguish the unreleased integration build.
 
 ## Delivery evidence
+
+### 0.1.2 native navigation update
+
+The user selected a native Project tree plus command shortcuts. The tree uses VS Code's TreeView in one Lakehouse Plumber Activity Bar container. It presents the selected project's pipelines, flowgroups, actions and related files from the existing snapshot, with child nodes created only when expanded. Inactive project roots do not trigger Python work. Native source links use the same guarded project-relative source addresses as the designer; tree commands re-resolve the current node and revision before acting. View title, overflow and item context actions expose the existing workflows. No second editor, webview sidebar or default keyboard bindings are added.
+
+The editor's YAML assistance continues to compose with Red Hat YAML: runtime-provided JSON Schemas supply schema-aware editing; LHP's current custom provider adds project-specific scalar suggestions, field hover and definitions. Those custom suggestions use current-line text and project-wide output names, so context precision and duplicate-name handling are candidates for a later focused language-service improvement. This 0.1.2 update documents those limits without changing YAML semantics.
+
+Local acceptance passed on Linux ARM64: 48 unit/React/adapter tests across 12 files, six Python bridge tests, typecheck, lint, formatting, build and production audit with zero vulnerabilities. The real VS Code 1.106.0/Red Hat YAML 1.24.0 extension-host suite passed, including TreeView focus/reveal without a new refresh, native multi-document source opening, stale reference rejection, inactive-project isolation, and two rapid selections before the designer ready handshake. A synthetic model check covered 4,017 flowgroups and 18,766 actions without instantiating collapsed action rows. Three-platform CI and a newly audited 0.1.2 VSIX remain pending; the 0.1.1 evidence below remains the previous verified release record.
 
 ### 0.1.1 large-project refresh correction
 

@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import type {
   ActionMutation,
+  DesignerSelection,
   HostMessage,
   InstanceRequest,
   OperationStatus,
@@ -45,6 +46,7 @@ export function App() {
   const [edgeId, setEdgeId] = useState('');
   const [showAddAction, setShowAddAction] = useState(false);
   const [showInspector, setShowInspector] = useState(true);
+  const [navigation, setNavigation] = useState<DesignerSelection>();
 
   useEffect(() => {
     const unsubscribe = subscribe((incoming: HostMessage) => {
@@ -59,7 +61,21 @@ export function App() {
           }
           setProjects(incoming.projects);
           setTrusted(incoming.trusted);
-          if (incoming.snapshot) setSnapshot(incoming.snapshot);
+          setNavigation(incoming.selection);
+          // A project switch may bootstrap before its first snapshot arrives.
+          // Clear the previous project's graph instead of presenting it as current.
+          setSnapshot(incoming.snapshot);
+          if (!incoming.snapshot) {
+            setPreview(undefined);
+            setMode('pipeline');
+            setPipelineId('');
+            setFlowgroupId('');
+            setActionId('');
+            setEdgeId('');
+          }
+          break;
+        case 'select':
+          setNavigation(incoming.selection);
           break;
         case 'snapshot':
           setSnapshot((current) =>
@@ -107,6 +123,45 @@ export function App() {
     request({ type: 'ready' });
     return unsubscribe;
   }, []);
+
+  useEffect(() => {
+    if (!navigation || !snapshot || snapshot.context.project.id !== navigation.projectId) return;
+    if (snapshot.revision < navigation.revision) return;
+    if (snapshot.revision !== navigation.revision) {
+      setNavigation(undefined);
+      return;
+    }
+    const group = navigation.flowgroupId
+      ? snapshot.flowgroups.find((item) => item.id === navigation.flowgroupId)
+      : undefined;
+    const pipeline = navigation.pipeline
+      ? snapshot.pipelines.find((item) => item.name === navigation.pipeline)
+      : undefined;
+    if (
+      (navigation.flowgroupId && !group) ||
+      (navigation.pipeline && !pipeline) ||
+      (group && navigation.pipeline && group.pipeline !== navigation.pipeline) ||
+      (navigation.actionId && !group?.actions.some((item) => item.id === navigation.actionId))
+    ) {
+      setNavigation(undefined);
+      return;
+    }
+    if (group) {
+      setPipelineId(group.pipeline);
+      setFlowgroupId(group.id);
+      setActionId(navigation.actionId ?? '');
+      setMode('flowgroup');
+    } else if (pipeline) {
+      setPipelineId(pipeline.name);
+      setFlowgroupId('');
+      setActionId('');
+      setMode('pipeline');
+    }
+    setEdgeId('');
+    setShowAddAction(false);
+    setShowInspector(true);
+    setNavigation(undefined);
+  }, [navigation, snapshot]);
 
   const context = snapshot
     ? { projectId: snapshot.context.project.id, revision: snapshot.revision }
