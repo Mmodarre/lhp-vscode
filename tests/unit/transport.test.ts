@@ -48,10 +48,11 @@ describe('bounded large responses', () => {
     try {
       await writeFile(
         file,
-        "import json,sys\nr=json.loads(sys.stdin.readline())\nprint(json.dumps(dict(protocolVersion=1,id=r['id'],type='result',result=dict(nodes=list(range(20000))))))\n",
+        "import json,sys\nr=json.loads(sys.stdin.readline())\nprint(json.dumps(dict(protocolVersion=1,id=r['id'],type='result',result=dict(nodes=list(range(20000)),text='α漢😀')),ensure_ascii=False))\n",
       );
       const result = await client.call({ operation: 'health', interpreter: python });
       expect((result as { nodes: number[] }).nodes).toHaveLength(20000);
+      expect((result as { text: string }).text).toBe('α漢😀');
       await writeFile(
         file,
         "import json,sys\nsys.stdin.readline()\nprint(json.dumps(dict(protocolVersion=1,id='another-request',type='result',result={})))\n",

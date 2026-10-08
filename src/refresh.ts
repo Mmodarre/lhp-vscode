@@ -44,7 +44,7 @@ export async function refreshProject(host: Controller): Promise<void> {
       const data = await host.call('snapshot', project, runtime, signal);
       if (epoch !== host.epoch || signal.aborted || host.project !== project) return;
       let snapshot = normalizeSnapshot(project.root, data, context, epoch);
-      snapshot.documents = (await snapshotDocuments(project.root, snapshot)).map(
+      snapshot.documents = (await snapshotDocuments(project.root, snapshot, signal)).map(
         ({ path, version, dirty }) => ({ path, version, dirty }),
       );
       snapshot.refreshState = 'ready';

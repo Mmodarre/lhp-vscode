@@ -58,7 +58,13 @@ export class BridgeClient {
         shell: false,
         windowsHide: true,
         detached: process.platform !== 'win32',
-        env: { ...process.env, PYTHONUNBUFFERED: '1', LHP_NO_CACHE: '1', LHP_TELEMETRY: 'off' },
+        env: {
+          ...process.env,
+          PYTHONUNBUFFERED: '1',
+          PYTHONIOENCODING: 'utf-8',
+          LHP_NO_CACHE: '1',
+          LHP_TELEMETRY: 'off',
+        },
         stdio: ['pipe', 'pipe', 'pipe'],
       });
       this.children.add(child);

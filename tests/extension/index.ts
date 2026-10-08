@@ -6,6 +6,7 @@ import * as vscode from 'vscode';
 import type { ExtensionApi } from '../../src/extension';
 import { createBundlePipelineConfig } from '../../src/onboarding';
 import { generateSavedProject } from '../../src/projectOperations';
+import { snapshotDocuments } from '../../src/documents';
 import type { ActionMutation, ProjectSnapshot, WebviewRequest } from '../../src/shared/protocol';
 
 let nextRequestId = 0;
@@ -256,6 +257,14 @@ export async function run(): Promise<void> {
   // Cancelled and superseded refreshes retain valid runtime/graph information,
   // leave loading state, and permit a clean retry after the old request settles.
   await api.controller.refresh();
+  const documentLoading = new AbortController();
+  const loadingDocuments = snapshotDocuments(
+    api.controller.project!.root,
+    current(api),
+    documentLoading.signal,
+  );
+  documentLoading.abort();
+  await assert.rejects(loadingDocuments, /abort/i);
   const bridgeCall = api.controller.bridge.call.bind(api.controller.bridge);
   for (const supersede of [false, true]) {
     let started!: () => void;

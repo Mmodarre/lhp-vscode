@@ -27,6 +27,7 @@ export function projectOverlays(root: string): DocumentOverlay[] {
 export async function snapshotDocuments(
   root: string,
   snapshot: ProjectSnapshot,
+  signal?: AbortSignal,
 ): Promise<DocumentSnapshot[]> {
   const paths = new Set(
     snapshot.flowgroups
@@ -47,9 +48,11 @@ export async function snapshotDocuments(
   await Promise.all(
     Array.from({ length: Math.min(8, filenames.length) }, async () => {
       while (next < filenames.length) {
+        signal?.throwIfAborted();
         const index = next++;
         const filename = filenames[index]!;
         const uri = vscode.Uri.file(await containedPath(root, filename));
+        signal?.throwIfAborted();
         const document = await vscode.workspace.openTextDocument(uri);
         result[index] = {
           path: filename,
@@ -60,6 +63,7 @@ export async function snapshotDocuments(
       }
     }),
   );
+  signal?.throwIfAborted();
   return result;
 }
 export async function openSource(
