@@ -4,6 +4,7 @@ import { tmpdir } from 'node:os';
 import { describe, expect, it } from 'vitest';
 import { containedPath, lexicalPath } from '../../src/paths';
 import { parseWebviewRequest } from '../../src/shared/guards';
+import { projectFile } from '../../src/catalog';
 import { BridgeClient } from '../../src/bridgeClient';
 
 describe('host boundaries', () => {
@@ -40,6 +41,15 @@ describe('host boundaries', () => {
         expect(() => lexicalPath(root, unsafe)).toThrow();
       await mkdir(path.join(root, 'project'));
       await mkdir(path.join(root, 'outside'));
+      await writeFile(path.join(root, 'project/example.yaml'), 'name: test\n');
+      await symlink(
+        path.join(root, 'project'),
+        path.join(root, 'alias'),
+        process.platform === 'win32' ? 'junction' : 'dir',
+      );
+      expect(projectFile(path.join(root, 'alias'), path.join(root, 'project/example.yaml'))).toBe(
+        'example.yaml',
+      );
       await symlink(
         path.join(root, 'outside'),
         path.join(root, 'project/link'),

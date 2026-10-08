@@ -9,6 +9,8 @@ import type {
 import { isRecord, isJsonValue } from './shared/guards';
 import { relativePath } from './paths';
 import { parse } from 'yaml';
+import { isAbsolute } from 'node:path';
+import { realpathSync } from 'node:fs';
 
 export const record = (value: unknown): Record<string, unknown> => (isRecord(value) ? value : {});
 export const items = (value: unknown): unknown[] => (Array.isArray(value) ? value : []);
@@ -18,7 +20,19 @@ export const jsonObject = (value: unknown): JsonObject =>
   isRecord(value) && isJsonValue(value) ? (value as JsonObject) : {};
 export function projectFile(root: string, value: unknown): string {
   const filename = text(value);
-  return relativePath(root, filename) ?? filename.replaceAll('\\', '/');
+  if (!isAbsolute(filename)) return filename.replaceAll('\\', '/');
+  const lexical = relativePath(root, filename);
+  if (lexical) return lexical;
+  // Python resolves project roots, while VS Code may keep an alias such as
+  // macOS /var -> /private/var. Match the same physical root before relativising.
+  try {
+    return (
+      relativePath(realpathSync.native(root), realpathSync.native(filename)) ??
+      filename.replaceAll('\\', '/')
+    );
+  } catch {
+    return filename.replaceAll('\\', '/');
+  }
 }
 export function sourceRef(root: string, value: unknown): SourceRef {
   const s = record(value);
