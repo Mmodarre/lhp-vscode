@@ -72,11 +72,16 @@ export async function runResourceTests(api: ExtensionApi): Promise<void> {
   // Seed a preview using the public provider, then reject a persisted other-env
   // file even when its plan-relative path is identical.
   host.previews.set({
-    files: [{ path: 'orders.py', content: '# draft', kind: 'source' }],
+    files: [{ path: 'bronze\\orders.py', content: '# draft', kind: 'source' }],
     parity: 'source-only',
     documentVersions: {},
     notices: [],
   });
+  const portablePreview = host.previews.uri('bronze/orders.py');
+  assert.ok(portablePreview, 'Windows API path is indexed by canonical project-relative spelling');
+  assert.equal(host.previews.uri('bronze\\orders.py')?.toString(), portablePreview.toString());
+  await host.previews.show('bronze/orders.py');
+  assert.equal((await vscode.workspace.openTextDocument(portablePreview)).getText(), '# draft');
   const saved = host.workspace.index!;
   host.workspace.index = {
     ...saved,
@@ -84,9 +89,9 @@ export async function runResourceTests(api: ExtensionApi): Promise<void> {
       ...saved.files,
       {
         id: 'foreign-output',
-        path: 'generated/prod/orders.py',
+        path: 'generated/prod/bronze/orders.py',
         name: 'orders.py',
-        source: { path: 'generated/prod/orders.py' },
+        source: { path: 'generated/prod/bronze/orders.py' },
         kind: 'generated',
         generatedKind: 'source',
         environment: 'prod',
