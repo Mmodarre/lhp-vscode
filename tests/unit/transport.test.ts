@@ -45,12 +45,18 @@ describe('bounded large responses', () => {
     const python =
       process.env.LHP_TEST_PYTHON ?? (process.platform === 'win32' ? 'python' : 'python3');
     const client = new BridgeClient(file, () => undefined);
+    const previousEncoding = process.env.PYTHONIOENCODING;
+    process.env.PYTHONIOENCODING = 'cp1252';
     try {
       await writeFile(
         file,
-        "import json,sys\nr=json.loads(sys.stdin.readline())\nprint(json.dumps(dict(protocolVersion=1,id=r['id'],type='result',result=dict(nodes=list(range(20000)),text='α漢😀')),ensure_ascii=False))\n",
+        "import json,sys\nr=json.loads(sys.stdin.readline())\nprint(json.dumps(dict(protocolVersion=1,id=r['id'],type='result',result=dict(nodes=list(range(20000)),text=r['options']['text'])),ensure_ascii=False))\n",
       );
-      const result = await client.call({ operation: 'health', interpreter: python });
+      const result = await client.call({
+        operation: 'health',
+        interpreter: python,
+        options: { text: 'α漢😀' },
+      });
       expect((result as { nodes: number[] }).nodes).toHaveLength(20000);
       expect((result as { text: string }).text).toBe('α漢😀');
       await writeFile(
@@ -68,6 +74,8 @@ describe('bounded large responses', () => {
         { code: 'PROTOCOL_ERROR' },
       );
     } finally {
+      if (previousEncoding === undefined) delete process.env.PYTHONIOENCODING;
+      else process.env.PYTHONIOENCODING = previousEncoding;
       client.dispose();
       await rm(root, { recursive: true, force: true });
     }
