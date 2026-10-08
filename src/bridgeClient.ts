@@ -69,10 +69,22 @@ export class BridgeClient {
         settled = true;
         clearTimeout(timeout);
         call.signal?.removeEventListener('abort', abort);
-        this.children.delete(child);
-        terminateProcessTree(child);
-        if (error) reject(error);
-        else resolve(result ?? null);
+        void terminateProcessTree(child).then(
+          () => {
+            this.children.delete(child);
+            if (error) reject(error);
+            else resolve(result ?? null);
+          },
+          (shutdown) => {
+            this.children.delete(child);
+            reject(
+              new BridgeError(
+                'PROCESS_SHUTDOWN',
+                shutdown instanceof Error ? shutdown.message : 'Python process tree did not close.',
+              ),
+            );
+          },
+        );
       };
       const abort = (): void => finish(new BridgeError('CANCELLED', 'Operation cancelled.'));
       const timeout = setTimeout(
@@ -161,7 +173,10 @@ export class BridgeClient {
     });
   }
   dispose(): void {
-    for (const child of this.children) terminateProcessTree(child);
+    for (const child of this.children)
+      void terminateProcessTree(child).catch((error) =>
+        this.log(error instanceof Error ? error.message : 'Python shutdown failed.'),
+      );
     this.children.clear();
   }
 }

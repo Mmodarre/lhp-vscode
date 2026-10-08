@@ -229,7 +229,7 @@
     "test:extension": "node scripts/test-extension.mjs",
     "check": "npm run typecheck && npm run lint && npm run build && npm test && npm run test:bridge",
     "audit:production": "npm audit --omit=dev",
-    "package": "npm run build && vsce package --no-dependencies --out .tmp/lhp-vscode-0.1.0.vsix && node scripts/check-package.mjs",
+    "package": "npm run build && node scripts/package.mjs && node scripts/check-package.mjs",
     "vscode:prepublish": "npm run build",
     "format": "prettier --write src webview/src tests scripts *.json *.mjs vitest.config.mts",
     "format:check": "prettier --check src webview/src tests scripts *.json *.mjs vitest.config.mts"

@@ -104,7 +104,7 @@ async function performOperation(
       );
     }
   });
-  if (operation === 'generate') await host.refresh();
+  if (operation === 'generate' && !host.isOperating) await host.refresh();
 }
 export async function databricks(host: Controller): Promise<void> {
   const project = host.requireProject();

@@ -1,6 +1,6 @@
 import * as vscode from 'vscode';
 import * as path from 'node:path';
-import { BridgeClient, type BridgeCall } from './bridgeClient';
+import { BridgeClient, BridgeError, type BridgeCall } from './bridgeClient';
 import { text } from './catalog';
 import { operate, databricks } from './projectOperations';
 import { projectOverlays, snapshotDocuments } from './documents';
@@ -31,7 +31,16 @@ export class Controller implements vscode.Disposable {
   project?: Project;
   snapshot?: ProjectSnapshot;
   epoch = 0;
-  private operation?: { controller: AbortController; operation: OperationStatus['operation'] };
+  private discovery = 0;
+  private operation?: {
+    controller: AbortController;
+    operation: OperationStatus['operation'];
+    completion: Promise<void>;
+  };
+  private shutdownFailed = false;
+  get isOperating(): boolean {
+    return !!this.operation;
+  }
   timer?: ReturnType<typeof setTimeout>;
   lastEdited?: vscode.Uri;
   private readonly output = vscode.window.createOutputChannel('Lakehouse Plumber');
@@ -52,25 +61,36 @@ export class Controller implements vscode.Disposable {
       vscode.workspace.onDidChangeConfiguration((event) => {
         if (event.affectsConfiguration('lhp')) {
           this.invalidate();
-          void this.refresh();
+          void this.refresh().catch((error) => this.report(error));
         }
       }),
       vscode.workspace.onDidChangeWorkspaceFolders(() => {
         this.invalidate();
-        void this.discover();
+        void this.discover().catch((error) => this.report(error));
       }),
       vscode.workspace.onDidGrantWorkspaceTrust(() => {
-        void this.refresh();
+        void this.refresh().catch((error) => this.report(error));
       }),
       vscode.workspace.registerTextDocumentContentProvider('lhp-preview', this.previews),
     );
     const watcher = vscode.workspace.createFileSystemWatcher('**/*.{yaml,yml,sql,py,json}');
     this.subscriptions.push(
       watcher,
-      watcher.onDidCreate((uri) => this.sourceChanged(uri)),
-      watcher.onDidDelete((uri) => this.sourceChanged(uri)),
+      watcher.onDidCreate((uri) => this.fileTopologyChanged(uri)),
+      watcher.onDidDelete((uri) => this.fileTopologyChanged(uri)),
       watcher.onDidChange((uri) => this.sourceChanged(uri)),
     );
+  }
+  private fileTopologyChanged(uri: vscode.Uri): void {
+    const folder = vscode.workspace.getWorkspaceFolder(uri);
+    const relative = folder ? relativePath(folder.uri.fsPath, uri.fsPath) : undefined;
+    if (
+      relative?.endsWith('lhp.yaml') &&
+      !/(?:^|\/)(?:node_modules|\.venv|venv|\.git|generated|\.tmp)\//.test(relative)
+    ) {
+      this.invalidate();
+      void this.discover().catch((error) => this.report(error));
+    } else this.sourceChanged(uri);
   }
   private sourceChanged(uri: vscode.Uri, nativeDirtyEdit = false): void {
     if (uri.path.endsWith('/lhp.yaml') && !this.project) {
@@ -84,7 +104,7 @@ export class Controller implements vscode.Disposable {
       this.project && uri.scheme === 'file'
         ? relativePath(this.project.root, uri.fsPath)
         : undefined;
-    if (!relative || /^(generated|\.venv|\.git|\.tmp)\//.test(relative)) return;
+    if (!relative || /^(generated|node_modules|\.venv|venv|\.git|\.tmp)\//.test(relative)) return;
     this.invalidate();
     if (this.snapshot) {
       this.snapshot = {
@@ -145,12 +165,21 @@ export class Controller implements vscode.Disposable {
     });
   }
   async discover(): Promise<void> {
-    this.projects = await discoverProjects();
+    const discovery = ++this.discovery;
+    const projects = await discoverProjects();
+    if (discovery !== this.discovery) return;
+    this.projects = projects;
+    const previous = this.project?.summary.id;
     const selected = this.context.workspaceState.get<string>('lhp.activeProject');
     this.project =
       this.projects.find(
         (p) => p.summary.id === this.project?.summary.id || p.summary.id === selected,
       ) ?? this.projects[0];
+    if (previous !== this.project?.summary.id) {
+      this.invalidate();
+      this.snapshot = undefined;
+      this.problems.clear();
+    }
     this.bootstrap();
     await this.refresh();
   }
@@ -223,12 +252,24 @@ export class Controller implements vscode.Disposable {
     operation: OperationStatus['operation'],
     task: (signal: AbortSignal) => Promise<T>,
   ): Promise<T | undefined> {
-    if (this.operation) {
-      if (this.operation.operation === 'snapshot') this.operation.controller.abort();
-      else
+    if (this.shutdownFailed)
+      throw new Error(
+        'The previous Python process could not be stopped. Restart VS Code after stopping it before running another operation.',
+      );
+    while (this.operation) {
+      const previous = this.operation;
+      if (previous.operation === 'snapshot' || previous.controller.signal.aborted) {
+        previous.controller.abort();
+        await previous.completion;
+        if (this.shutdownFailed) throw new Error('The previous Python process did not close.');
+      } else
         throw new Error('An LHP operation is already running. Cancel it before starting another.');
     }
-    const current = { controller: new AbortController(), operation };
+    let complete!: () => void;
+    const completion = new Promise<void>((resolve) => {
+      complete = resolve;
+    });
+    const current = { controller: new AbortController(), operation, completion };
     this.operation = current;
     this.panel.post({
       type: 'status',
@@ -251,6 +292,10 @@ export class Controller implements vscode.Disposable {
         },
       );
     } catch (error) {
+      if (error instanceof BridgeError && error.code === 'PROCESS_SHUTDOWN') {
+        this.shutdownFailed = true;
+        throw error;
+      }
       if (!current.controller.signal.aborted) throw error;
       return undefined;
     } finally {
@@ -261,10 +306,15 @@ export class Controller implements vscode.Disposable {
           status: {
             operation,
             running: false,
-            message: current.controller.signal.aborted ? 'Operation cancelled.' : 'Ready.',
+            message: this.shutdownFailed
+              ? 'Python shutdown failed.'
+              : current.controller.signal.aborted
+                ? 'Operation cancelled.'
+                : 'Ready.',
           },
         });
       }
+      complete();
     }
   }
   async refresh(): Promise<void> {

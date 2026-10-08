@@ -95,7 +95,6 @@ describe('host boundaries', () => {
       expect(pid).toBeGreaterThan(0);
       controller.abort();
       expect(((await outcome) as Error).message).toContain('cancelled');
-      await new Promise((resolve) => setTimeout(resolve, 150));
       let running = false;
       try {
         process.kill(pid, 0);
