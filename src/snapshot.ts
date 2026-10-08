@@ -2,6 +2,7 @@ import type {
   ActionNode,
   EditorDiagnostic,
   FlowgroupDetail,
+  FlowgroupSummary,
   GraphEdge,
   ProjectContext,
   ProjectSnapshot,
@@ -9,11 +10,14 @@ import type {
   SourceRef,
 } from './shared/protocol';
 import { items, jsonObject, normalizeCatalog, record, sourceRef, text } from './catalog';
+import { createHash } from 'node:crypto';
 
 const stringList = (v: unknown): string[] =>
   typeof v === 'string' ? [v] : items(v).filter((s): s is string => typeof s === 'string');
 const identity = (s: SourceRef, name: string) =>
-  `${s.path}#${s.documentIndex ?? 0}:${JSON.stringify(s.yamlPath ?? [])}:${name}`;
+  createHash('sha256')
+    .update(JSON.stringify([s.path, s.documentIndex ?? 0, s.yamlPath ?? [], name]))
+    .digest('base64url');
 function subtype(action: Record<string, unknown>): string | undefined {
   return (
     text(
@@ -64,7 +68,7 @@ export function normalizeSnapshot(
   const flowgroups: FlowgroupDetail[] = items(data.flowgroups).map((value) => {
     const fg = record(value);
     const source = sourceRef(root, fg.source);
-    const id = identity(source, text(fg.name));
+    const id = identity(source, JSON.stringify([text(fg.pipeline), text(fg.name)]));
     const origin = {
       kind:
         fg.origin === 'template'
@@ -146,11 +150,17 @@ export function normalizeSnapshot(
   });
   const dependencies = record(data.dependencies);
   const canonicalActions = record(dependencies.action_graph);
+  const groupKey = (pipeline: unknown, name: unknown) => JSON.stringify([pipeline, name]);
+  const groupsByName = new Map(flowgroups.map((fg) => [groupKey(fg.pipeline, fg.name), fg]));
+  const groupsById = new Map(flowgroups.map((fg) => [fg.id, fg]));
+  const actionsByName = new Map(
+    flowgroups.map((fg) => [fg.id, new Map(fg.actions.map((a) => [a.name, a]))]),
+  );
   const byCanonical = new Map<string, ActionNode>();
   for (const raw of items(canonicalActions.nodes)) {
     const node = record(raw);
-    const fg = flowgroups.find((f) => f.pipeline === node.pipeline && f.name === node.flowgroup);
-    const action = fg?.actions.find((a) => a.name === node.label);
+    const fg = groupsByName.get(groupKey(node.pipeline, node.flowgroup));
+    const action = fg && actionsByName.get(fg.id)?.get(text(node.label));
     if (action) byCanonical.set(text(node.id), action);
   }
   // Edges come exclusively from LHP's canonical dependency analysis, including
@@ -180,15 +190,20 @@ export function normalizeSnapshot(
       },
     ];
   });
-  for (const fg of flowgroups)
-    fg.edges = edges.filter((edge) =>
-      fg.actions.some((a) => a.id === edge.source || a.id === edge.target),
-    );
+  const actionGroups = new Map(
+    flowgroups.flatMap((fg) => fg.actions.map((a) => [a.id, fg.id] as const)),
+  );
+  for (const edge of edges) {
+    const source = actionGroups.get(edge.source);
+    const target = actionGroups.get(edge.target);
+    if (source) groupsById.get(source)!.edges.push(edge);
+    if (target && target !== source) groupsById.get(target)!.edges.push(edge);
+  }
   const canonicalFlowgroups = record(dependencies.flowgroup_graph);
   const byGroup = new Map<string, FlowgroupDetail>();
   for (const raw of items(canonicalFlowgroups.nodes)) {
     const node = record(raw);
-    const fg = flowgroups.find((f) => f.pipeline === node.pipeline && f.name === node.flowgroup);
+    const fg = groupsByName.get(groupKey(node.pipeline, node.flowgroup));
     if (fg) byGroup.set(text(node.id), fg);
   }
   const flowgroupEdges: GraphEdge[] = items(canonicalFlowgroups.edges).flatMap((raw, index) => {
@@ -209,14 +224,28 @@ export function normalizeSnapshot(
       : [];
   });
   const environments = items(data.environments).map((v) => text(v));
+  const pipelines = new Map<string, FlowgroupSummary[]>();
+  for (const fg of flowgroups) {
+    const summary: FlowgroupSummary = {
+      id: fg.id,
+      name: fg.name,
+      pipeline: fg.pipeline,
+      source: fg.source,
+      actionCount: fg.actionCount,
+      origin: fg.origin,
+    };
+    const groups = pipelines.get(fg.pipeline) ?? [];
+    groups.push(summary);
+    pipelines.set(fg.pipeline, groups);
+  }
   return {
     revision,
     context: { ...context, environment: text(data.environment, context.environment), environments },
     flowgroups,
     flowgroupEdges,
-    pipelines: [...new Set(flowgroups.map((f) => f.pipeline))]
-      .sort()
-      .map((name) => ({ name, flowgroups: flowgroups.filter((f) => f.pipeline === name) })),
+    pipelines: [...pipelines]
+      .sort(([a], [b]) => a.localeCompare(b))
+      .map(([name, groups]) => ({ name, flowgroups: groups })),
     catalog: normalizeCatalog(root, data.catalog),
     documents: [],
     diagnostics: normalizeDiagnostics(root, data.diagnostics),

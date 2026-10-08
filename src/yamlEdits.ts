@@ -115,8 +115,8 @@ export function planMutation(
   current: DocumentSnapshot[],
   versions: Record<string, number>,
 ): DocumentEdit[] {
-  if (snapshot.stale)
-    throw new Error('Resolve invalid source and refresh before editing the graph.');
+  if (snapshot.stale || (snapshot.refreshState && snapshot.refreshState !== 'ready'))
+    throw new Error('Refresh the graph successfully before applying edits.');
   const drafts = new Map<string, Draft>();
   const action = (id: string): ActionNode => {
     const node = snapshot.flowgroups.flatMap((fg) => fg.actions).find((a) => a.id === id);

@@ -39,17 +39,27 @@ export async function snapshotDocuments(
       .filter((p): p is string => !!p),
   );
   for (const overlay of projectOverlays(root)) paths.add(overlay.path);
-  const result: DocumentSnapshot[] = [];
-  for (const filename of paths) {
-    const uri = vscode.Uri.file(await containedPath(root, filename));
-    const document = await vscode.workspace.openTextDocument(uri);
-    result.push({
-      path: filename,
-      version: document.version,
-      dirty: document.isDirty,
-      text: document.getText(),
-    });
-  }
+  const filenames = [...paths];
+  const result = new Array<DocumentSnapshot>(filenames.length);
+  let next = 0;
+  // Bound native-editor IPC concurrency while retaining a real document version
+  // for every source, including unopened files. Array order stays deterministic.
+  await Promise.all(
+    Array.from({ length: Math.min(8, filenames.length) }, async () => {
+      while (next < filenames.length) {
+        const index = next++;
+        const filename = filenames[index]!;
+        const uri = vscode.Uri.file(await containedPath(root, filename));
+        const document = await vscode.workspace.openTextDocument(uri);
+        result[index] = {
+          path: filename,
+          version: document.version,
+          dirty: document.isDirty,
+          text: document.getText(),
+        };
+      }
+    }),
+  );
   return result;
 }
 export async function openSource(

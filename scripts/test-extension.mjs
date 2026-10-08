@@ -89,7 +89,9 @@ if (installed.status !== 0)
 await runTests({
   vscodeExecutablePath: executable,
   extensionDevelopmentPath: root,
-  extensionTestsPath: path.resolve('out/extension-tests.cjs'),
+  extensionTestsPath: path.resolve(
+    process.env.LHP_PERF_PROJECT ? 'out/performance-tests.cjs' : 'out/extension-tests.cjs',
+  ),
   launchArgs: [
     workspace,
     '--no-sandbox',
@@ -102,5 +104,8 @@ await runTests({
     '--user-data-dir',
     userData,
   ],
-  extensionTestsEnv: { LHP_TEST_PYTHON: python },
+  extensionTestsEnv: {
+    LHP_TEST_PYTHON: python,
+    ...(process.env.LHP_PERF_PROJECT ? { LHP_PERF_PROJECT: process.env.LHP_PERF_PROJECT } : {}),
+  },
 });

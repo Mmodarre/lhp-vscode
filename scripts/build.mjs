@@ -40,6 +40,15 @@ const configurations = [
     target: 'node20',
     external: ['vscode'],
   },
+  {
+    ...common,
+    entryPoints: ['tests/extension/performance.ts'],
+    outfile: 'out/performance-tests.cjs',
+    platform: 'node',
+    format: 'cjs',
+    target: 'node20',
+    external: ['vscode'],
+  },
 ];
 for (const config of configurations) {
   if (watch) await (await context(config)).watch();

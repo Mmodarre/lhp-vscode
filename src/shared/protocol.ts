@@ -27,10 +27,13 @@ export interface SourceRef {
   yamlPath?: YamlPath;
   label?: string;
 }
-export interface DocumentSnapshot {
+export interface DocumentState {
   path: string;
   version: number;
   dirty: boolean;
+}
+/** Source text stays in the extension host; the webview needs only versions. */
+export interface DocumentSnapshot extends DocumentState {
   text: string;
 }
 export interface RuntimeInfo {
@@ -156,10 +159,13 @@ export interface ProjectSnapshot {
   flowgroups: FlowgroupDetail[];
   /** Cross-flowgroup data dependencies; source/target are FlowgroupSummary.id. */
   flowgroupEdges: GraphEdge[];
-  documents: DocumentSnapshot[];
+  documents: DocumentState[];
   catalog: EditorCatalog;
   diagnostics: EditorDiagnostic[];
   stale: boolean;
+  /** Independent of source validity and runtime compatibility. */
+  refreshState?: 'loading' | 'ready' | 'failed';
+  refreshError?: string;
   notices: string[];
 }
 export interface PreviewFile {

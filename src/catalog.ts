@@ -17,7 +17,7 @@ export const items = (value: unknown): unknown[] => (Array.isArray(value) ? valu
 export const text = (value: unknown, fallback = ''): string =>
   typeof value === 'string' ? value : fallback;
 export const jsonObject = (value: unknown): JsonObject =>
-  isRecord(value) && isJsonValue(value) ? (value as JsonObject) : {};
+  isRecord(value) && isJsonValue(value, 0, Infinity) ? (value as JsonObject) : {};
 export function projectFile(root: string, value: unknown): string {
   const filename = text(value);
   if (!isAbsolute(filename)) return filename.replaceAll('\\', '/');

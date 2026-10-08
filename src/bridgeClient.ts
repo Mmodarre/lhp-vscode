@@ -2,6 +2,7 @@ import { spawn, type ChildProcessWithoutNullStreams } from 'node:child_process';
 import { randomUUID } from 'node:crypto';
 import { terminateProcessTree } from './processTree';
 import { isJsonValue, isRecord } from './shared/guards';
+import { NdjsonDecoder } from './ndjson';
 import {
   PROTOCOL_VERSION,
   type BridgeRequest,
@@ -62,7 +63,7 @@ export class BridgeClient {
       });
       this.children.add(child);
       let settled = false;
-      let buffer = '';
+      const decoder = new NdjsonDecoder();
       let stderr = '';
       const finish = (error?: Error, result?: JsonValue): void => {
         if (settled) return;
@@ -106,21 +107,10 @@ export class BridgeClient {
       child.stderr.on('data', (data: string) => {
         stderr = (stderr + data).slice(-8192);
       });
-      child.stdout.setEncoding('utf8');
-      child.stdout.on('data', (data: string) => {
-        buffer += data;
-        if (buffer.length > 32 * 1024 * 1024) {
-          finish(
-            new BridgeError('PROTOCOL_LIMIT', 'LHP response exceeded the 32 MB transport limit.'),
-          );
-          return;
-        }
-        let newline: number;
-        while ((newline = buffer.indexOf('\n')) >= 0) {
-          const line = buffer.slice(0, newline);
-          buffer = buffer.slice(newline + 1);
-          if (!line.trim()) continue;
-          try {
+      child.stdout.on('data', (data: Buffer) => {
+        if (settled) return;
+        try {
+          decoder.push(data, (line) => {
             const envelope: unknown = JSON.parse(line);
             if (
               !isRecord(envelope) ||
@@ -128,12 +118,14 @@ export class BridgeClient {
               envelope.id !== id
             )
               throw new Error('Mismatched response.');
-            if (envelope.type === 'result' && isJsonValue(envelope.result))
+            // Responses are already byte-bounded. The webview request array cap
+            // is unrelated to canonical project graph size (often >10k nodes).
+            if (envelope.type === 'result' && isJsonValue(envelope.result, 0, Infinity))
               finish(undefined, envelope.result);
             else if (
               envelope.type === 'event' &&
               isRecord(envelope.event) &&
-              isJsonValue(envelope.event)
+              isJsonValue(envelope.event, 0, Infinity)
             )
               call.onEvent?.(envelope.event as JsonObject);
             else if (
@@ -143,11 +135,16 @@ export class BridgeClient {
             )
               finish(new BridgeError(envelope.code, envelope.message));
             else throw new Error('Unexpected response envelope.');
-          } catch {
-            finish(
-              new BridgeError('PROTOCOL_ERROR', 'Python returned an invalid structured response.'),
-            );
-          }
+            return !settled;
+          });
+        } catch (error) {
+          const limited = error instanceof Error && error.message.includes('transport budget');
+          finish(
+            new BridgeError(
+              limited ? 'PROTOCOL_LIMIT' : 'PROTOCOL_ERROR',
+              limited ? error.message : 'Python returned an invalid structured response.',
+            ),
+          );
         }
       });
       child.on('close', (code) => {
@@ -158,8 +155,10 @@ export class BridgeClient {
           );
           finish(
             new BridgeError(
-              'PYTHON_EXIT',
-              'Python exited before completing the operation. Verify the compatible LHP installation.',
+              decoder.incomplete ? 'PROTOCOL_ERROR' : 'PYTHON_EXIT',
+              decoder.incomplete
+                ? 'Python returned an incomplete structured response.'
+                : 'Python exited before completing the operation. Verify the compatible LHP installation.',
             ),
           );
         }

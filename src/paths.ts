@@ -1,6 +1,12 @@
 import * as path from 'node:path';
 import { realpath, lstat } from 'node:fs/promises';
 
+export function ignoredProjectPath(relative: string): boolean {
+  return /(?:^|\/)(?:node_modules|\.venv|venv|\.git|generated|\.tmp|\.lhp|\.databricks|\.ruff_cache|\.pytest_cache|__pycache__)\//.test(
+    relative,
+  );
+}
+
 export function relativePath(root: string, filename: string): string | undefined {
   const relative = path.relative(root, filename);
   if (

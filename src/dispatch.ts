@@ -62,6 +62,8 @@ export async function dispatch(host: Controller, request: WebviewRequest): Promi
       break;
     case 'createBronze':
     case 'createInstance':
+      if (host.snapshot?.refreshState && host.snapshot.refreshState !== 'ready')
+        throw new Error('Refresh the project successfully before creating a flowgroup.');
       await scaffold(host, request);
       break;
     case 'mutate': {

@@ -1,5 +1,13 @@
 # Implementation checklist
 
+## 0.1.1 reported refresh/notice defects
+- [x] Reproduce original oversized response and preserve full canonical graph counts.
+- [x] Remove duplicate transport data, keep the 32 MiB byte budget, reject malformed/truncated UTF-8 safely, and support graph arrays above 10,000 nodes.
+- [x] Publish current runtime health independently; distinguish loading, cancellation, transport failure and real source diagnostics.
+- [x] Collapse long notices and virtualize large graph views; verify synthetic 84-notice/4,017-flowgroup layouts.
+- [x] Run actual read-only performance-project refresh in VS Code: 4,017 flowgroups, 18,766 actions, 17,961 action edges and 2,813 document versions.
+- [ ] Complete patch desktop CI and audit/deliver `lhp-vscode-0.1.1.vsix`.
+
 ## Repository and shared contract
 - [x] Confirm new local and public repository names do not already exist.
 - [x] Create repository, Apache licence, scoped rules and implementation plan.

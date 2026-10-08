@@ -252,4 +252,51 @@ export async function run(): Promise<void> {
       /* The test's temporary nested folder may already have been removed. */
     }
   }
+
+  // Cancelled and superseded refreshes retain valid runtime/graph information,
+  // leave loading state, and permit a clean retry after the old request settles.
+  await api.controller.refresh();
+  const bridgeCall = api.controller.bridge.call.bind(api.controller.bridge);
+  for (const supersede of [false, true]) {
+    let started!: () => void;
+    const pending = new Promise<void>((resolve) => {
+      started = resolve;
+    });
+    let blocked = false;
+    let stopped = false;
+    api.controller.bridge.call = async (call) => {
+      if (call.operation === 'snapshot' && !blocked) {
+        blocked = true;
+        started();
+        await new Promise<void>((_resolve, reject) => {
+          const stop = () => {
+            stopped = true;
+            reject(new Error('Cancelled test snapshot'));
+          };
+          if (call.signal?.aborted) stop();
+          else call.signal?.addEventListener('abort', stop, { once: true });
+        });
+      }
+      if (call.operation === 'snapshot')
+        assert.ok(stopped, 'superseding work waits for cancelled work');
+      return bridgeCall(call);
+    };
+    try {
+      const refreshing = api.controller.refresh();
+      await pending;
+      if (supersede) await Promise.all([refreshing, api.controller.refresh()]);
+      else {
+        api.controller.cancel();
+        await refreshing;
+        assert.equal(current(api).refreshState, 'failed');
+        assert.match(current(api).refreshError ?? '', /cancelled/i);
+        assert.equal(current(api).context.runtime.compatible, true);
+        assert.ok(current(api).flowgroups.length > 0);
+      }
+    } finally {
+      api.controller.bridge.call = bridgeCall;
+    }
+    await api.controller.refresh();
+    assert.equal(current(api).refreshState, 'ready');
+  }
 }

@@ -3,17 +3,21 @@ import { WEBVIEW_REQUEST_TYPES, type JsonValue, type WebviewRequest } from './pr
 export function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
 }
-export function isJsonValue(value: unknown, depth = 0): value is JsonValue {
+export function isJsonValue(value: unknown, depth = 0, maxArrayLength = 10000): value is JsonValue {
   if (depth > 30) return false;
   if (value === null || typeof value === 'string' || typeof value === 'boolean') return true;
   if (typeof value === 'number') return Number.isFinite(value);
   if (Array.isArray(value))
-    return value.length <= 10000 && value.every((item) => isJsonValue(item, depth + 1));
+    return (
+      value.length <= maxArrayLength &&
+      value.every((item) => isJsonValue(item, depth + 1, maxArrayLength))
+    );
   return (
     isRecord(value) &&
     Object.entries(value).every(
       ([key, item]) =>
-        !['__proto__', 'constructor', 'prototype'].includes(key) && isJsonValue(item, depth + 1),
+        !['__proto__', 'constructor', 'prototype'].includes(key) &&
+        isJsonValue(item, depth + 1, maxArrayLength),
     )
   );
 }

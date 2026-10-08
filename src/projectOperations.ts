@@ -44,6 +44,7 @@ export async function generateSavedProject(host: Controller): Promise<void> {
     throw new Error('Save project documents before generation.');
   if (
     !host.snapshot?.context.runtime.compatible ||
+    (host.snapshot.refreshState && host.snapshot.refreshState !== 'ready') ||
     host.snapshot.stale ||
     host.snapshot.diagnostics.some((d) => d.severity === 'error')
   )

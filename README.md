@@ -6,7 +6,7 @@ This first integration release targets desktop VS Code on macOS, Windows and Lin
 
 ## Install
 
-1. Download `lhp-vscode-0.1.0.vsix` from the build artifact supplied with the implementation PR, or build it below.
+1. Download `lhp-vscode-0.1.1.vsix` from the build artifact supplied with the implementation PR, or build it below.
 2. In VS Code, run **Extensions: Install from VSIX…**. Install **YAML by Red Hat** if VS Code requests the dependency.
 3. Open a trusted local folder and run **LHP: Open Pipeline Designer**.
 4. Select an existing compatible Python environment or use **Set Up Python Environment**. Python 3.11 or newer is required.
@@ -28,6 +28,8 @@ The extension requires the unreleased LHP 0.9.3 editor integration build at comm
 - Open the Databricks bundle and hand off deployment to the official Databricks extension.
 
 Preview is a source rendering aid. It does not represent bundle synchronisation, monitoring finalisation, sandbox generation or wheel packaging. It runs against an isolated project mirror and includes supported unsaved source documents. A preview expires when source, environment or interpreter changes.
+
+Large refreshes remain cancellable and retain their previous graph with an explicit loading or failure state. Version 0.1.1 was checked against the public performance example with 4,017 flowgroups and 18,766 actions: the complete bridge response is 29.47 MB, within the fixed 32 MiB decoded-response budget. This is not an unlimited project-size guarantee; an over-budget response fails explicitly without dropping graph members. Full inspection of that example took approximately 145 seconds end to end in the measured Linux ARM64 environment. External dataset notices are collapsed by default and graph rendering is limited to the visible viewport.
 
 Full generation saves project documents after one explicit confirmation, replaces `generated/<environment>` and synchronises an enabled bundle. Filtered generation is deliberately unavailable because the core commit phase replaces an entire environment directory. Cancellation stops the process tree; generation itself is not transactional, so cancelled output should be regenerated before use. Configured test actions are validated; emitting their generated hooks is controlled by `lhp.includeTestsInGeneration`, matching the CLI's opt-in flag.
 
@@ -54,6 +56,6 @@ On headless Linux, use `xvfb-run -a npm run test:extension`. The runner download
 
 The [verified desktop build](https://github.com/Mmodarre/lhp-vscode/actions/runs/37713497951) passes on Linux, macOS and Windows, including 31 unit/React/adapter tests, three real Python bridge tests and real VS Code integration on each platform. [TODO.md](TODO.md) records the delivered artifact checksum and exact tested revision.
 
-`npm run package` creates `.tmp/lhp-vscode-0.1.0.vsix` and audits its contents. Only bundled host/webview JavaScript, CSS, the Python adapter, media and notices belong in the VSIX. Python/LHP itself is installed separately. Development dependencies, tests, project files and local paths must not be shipped.
+`npm run package` creates `.tmp/lhp-vscode-0.1.1.vsix` and audits its contents. Only bundled host/webview JavaScript, CSS, the Python adapter, media and notices belong in the VSIX. Python/LHP itself is installed separately. Development dependencies, tests, project files and local paths must not be shipped.
 
 See [PLAN.md](PLAN.md), [TODO.md](TODO.md), [architecture](docs/ARCHITECTURE.md) and [research](docs/RESEARCH.md). Apache-2.0; upstream and bundled dependency notices are retained.

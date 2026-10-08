@@ -111,7 +111,7 @@ describe('native YAML mutations', () => {
         f.documents,
         f.versions,
       ),
-    ).toThrow('Resolve invalid');
+    ).toThrow('Refresh the graph');
   });
   it('disconnects raw substitutions matched through resolved input', () => {
     const f = fixture();

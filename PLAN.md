@@ -67,6 +67,12 @@ The public editor API dependency is pinned to core commit `98d285ab8a7606867abb5
 
 ## Delivery evidence
 
+### 0.1.1 large-project refresh correction
+
+The reported Refresh failure was reproduced numerically on the public performance example: the original response was 39,091,446 bytes and a second guard rejected arrays above 10,000 graph nodes. The patch projects only fields consumed by the editor, keeps every action/edge/raw/source field, uses a linear byte-bounded decoder with strict UTF-8, and separates runtime health from graph loading/failure. Canonical graph conversion uses indexed lookups; pipeline summaries and document-state messages no longer duplicate complete detail/source bodies. Notice expansion is bounded and graph nodes are virtualized.
+
+Independent core and host checks preserve all 4,017 flowgroups, 18,766 actions, 17,961 action edges and 3,212 flowgroup edges. The projected NDJSON response is 29,469,965 bytes; the existing 32 MiB budget has 12.17% headroom and remains an explicit supported-size boundary. Actual read-only VS Code inspection passed with 2,813 document versions in 145.09 seconds. No original project files or core APIs/E2E files were modified. Patch desktop CI and the versioned VSIX are tracked in TODO.md.
+
 All six milestones are implemented. Runtime revision `4ff6ec54608cb5f93f5734ee49dd403c90929d52` passed the [three-platform CI matrix](https://github.com/Mmodarre/lhp-vscode/actions/runs/37713497951) on 8 October 2026: 31 unit/React/adapter tests without skips, three real bridge lifecycle tests, real VS Code host integration on Linux, macOS and Windows, type/lint/format/build gates and zero production dependency vulnerabilities. The Linux job packaged and audited the delivered VSIX; TODO.md records its checksum and PR links.
 
 The accepted desktop authoring scope is shipped. Browser/remote-host support and remote Databricks execution remain outside the user-approved release boundary. Code-derived dependency edges and generated/template/blueprint action bodies navigate to their real source or configuration when direct edge/action mutation is unsupported. Preview remains source-only with explicit bundle, monitoring, sandbox and wheel parity limits; full generation is available separately. These are documented capability boundaries, not hidden successful-preview or deployment claims. No delivery blocker remains, and core E2E files are unchanged.

@@ -119,6 +119,13 @@ def runtime_health() -> dict[str, Any]:
     }
     try:
         result["lhpVersion"] = importlib.metadata.version("lakehouse-plumber")
+    except importlib.metadata.PackageNotFoundError:
+        result["message"] = (
+            "Lakehouse Plumber is not installed in this Python environment. "
+            "Select another interpreter or set up the reviewed editor integration build."
+        )
+        return result
+    try:
         import lhp.api as api
 
         missing = [name for name in REQUIRED_APIS if not hasattr(api, name)]
@@ -132,9 +139,10 @@ def runtime_health() -> dict[str, Any]:
             result["message"] = (
                 "Install the LHP 0.9.3 integration build with editor APIs. The standard 0.9.2 package does not provide them."
             )
-    except (ImportError, importlib.metadata.PackageNotFoundError) as error:
+    except (ImportError, importlib.metadata.PackageNotFoundError):
         result["message"] = (
-            f"Lakehouse Plumber is not available in this interpreter ({type(error).__name__})."
+            "Lakehouse Plumber is installed, but its editor API could not load. "
+            "Repair this environment's dependencies or select another compatible interpreter."
         )
     return result
 
@@ -167,10 +175,11 @@ def dispatch(request: dict[str, Any], emit: Any) -> Any:
                 "CONFIG_PATH", "Pipeline configuration must be inside the project."
             )
     if operation == "snapshot":
-        return api.to_dict(
+        return project_snapshot(
             api.inspect_editor_project(
                 root, env=env, overlays=overlays, pipeline_config_path=configuration
-            )
+            ),
+            api,
         )
     if operation == "catalog":
         return api.to_dict(api.editor_catalog(root))
@@ -257,6 +266,61 @@ def dispatch(request: dict[str, Any], emit: Any) -> Any:
     raise RequestError("OPERATION", "Unsupported operation.")
 
 
+def project_snapshot(view: Any, api: Any) -> dict[str, Any]:
+    """Project public DTOs to the editor contract without dropping graph members.
+
+    Resolved flowgroup bodies duplicate the per-action bodies; graph presentation
+    metadata and other dependency analyses are not used by this client. Project
+    before converting to dictionaries so those copies are not materialised.
+    """
+    fields = (
+        "pipeline",
+        "name",
+        "source",
+        "origin",
+        "raw",
+        "actions",
+        "definition",
+        "instance",
+        "editable",
+    )
+    data = {
+        key: api.to_dict(getattr(view, key))
+        for key in ("environment", "environments", "catalog", "diagnostics", "stale")
+    }
+    data["flowgroups"] = [
+        {key: api.to_dict(getattr(flowgroup, key)) for key in fields}
+        for flowgroup in view.flowgroups
+    ]
+    dependencies = view.dependencies
+    data["dependencies"] = {}
+    if dependencies is not None:
+        for kind in ("action_graph", "flowgroup_graph"):
+            graph = api.to_dict(getattr(dependencies, kind))
+            if graph:
+                data["dependencies"][kind] = {
+                    "nodes": [
+                        {
+                            key: node[key]
+                            for key in ("id", "label", "pipeline", "flowgroup")
+                            if key in node
+                        }
+                        for node in graph["nodes"]
+                    ],
+                    "edges": [
+                        {
+                            key: edge[key]
+                            for key in ("source", "target", "dataset")
+                            if key in edge
+                        }
+                        for edge in graph["edges"]
+                    ],
+                }
+        for key in ("external_sources", "warnings"):
+            data["dependencies"][key] = api.to_dict(getattr(dependencies, key))
+    return data
+
+
 def consume(events: Any, api: Any, emit: Any) -> Any:
     """Preserve public event ordering and return the terminal response JSON."""
     response = None
@@ -264,9 +328,9 @@ def consume(events: Any, api: Any, emit: Any) -> Any:
         if isinstance(event, api.ErrorEmitted):
             continue  # Canonical stream subsequently raises its LHPError.
         payload = api.to_dict(event)
-        emit("event", {"event": {"kind": type(event).__name__, **payload}})
         if isinstance(event, api.OperationCompleted):
-            response = payload.get("response")
+            response = payload.pop("response", None)
+        emit("event", {"event": {"kind": type(event).__name__, **payload}})
     if response is None:
         raise RequestError(
             "INCOMPLETE_STREAM", "Operation ended without a terminal result."
@@ -288,6 +352,7 @@ def main() -> None:
                     **body,
                 },
                 ensure_ascii=False,
+                separators=(",", ":"),
             )
             + "\n"
         )

@@ -3,15 +3,15 @@ import * as path from 'node:path';
 import { BridgeClient, BridgeError, type BridgeCall } from './bridgeClient';
 import { text } from './catalog';
 import { operate, databricks } from './projectOperations';
-import { projectOverlays, snapshotDocuments } from './documents';
+import { projectOverlays } from './documents';
 import { Problems } from './diagnostics';
 import { createProject, selectInterpreter, setupEnvironment } from './onboarding';
 import { dispatch } from './dispatch';
 import { DesignerPanel } from './panel';
-import { relativePath } from './paths';
+import { ignoredProjectPath, relativePath } from './paths';
 import { PreviewDocuments } from './preview';
-import { discoverProjects, inspectRuntime, type Project } from './projects';
-import { normalizeSnapshot } from './snapshot';
+import { discoverProjects, type Project } from './projects';
+import { refreshProject } from './refresh';
 import {
   PROTOCOL_VERSION,
   type JsonObject,
@@ -84,10 +84,7 @@ export class Controller implements vscode.Disposable {
   private fileTopologyChanged(uri: vscode.Uri): void {
     const folder = vscode.workspace.getWorkspaceFolder(uri);
     const relative = folder ? relativePath(folder.uri.fsPath, uri.fsPath) : undefined;
-    if (
-      relative?.endsWith('lhp.yaml') &&
-      !/(?:^|\/)(?:node_modules|\.venv|venv|\.git|generated|\.tmp)\//.test(relative)
-    ) {
+    if (relative?.endsWith('lhp.yaml') && !ignoredProjectPath(relative)) {
       this.invalidate();
       void this.discover().catch((error) => this.report(error));
     } else this.sourceChanged(uri);
@@ -104,14 +101,16 @@ export class Controller implements vscode.Disposable {
       this.project && uri.scheme === 'file'
         ? relativePath(this.project.root, uri.fsPath)
         : undefined;
-    if (!relative || /^(generated|node_modules|\.venv|venv|\.git|\.tmp)\//.test(relative)) return;
+    if (!relative || ignoredProjectPath(relative)) return;
     this.invalidate();
     if (this.snapshot) {
       this.snapshot = {
         ...this.snapshot,
         revision: this.epoch,
-        stale: true,
-        notices: ['Source changed. Refreshing the graph…'],
+        stale: this.snapshot.flowgroups.length > 0,
+        notices: [],
+        refreshState: 'loading',
+        refreshError: undefined,
       };
       this.panel.post({ type: 'snapshot', snapshot: this.snapshot });
     }
@@ -121,6 +120,7 @@ export class Controller implements vscode.Disposable {
         .then(async () => {
           if (
             this.snapshot?.context.runtime.compatible &&
+            this.snapshot.refreshState === 'ready' &&
             !this.snapshot.stale &&
             vscode.workspace
               .getConfiguration('lhp', vscode.Uri.file(this.project!.root))
@@ -271,6 +271,7 @@ export class Controller implements vscode.Disposable {
     });
     const current = { controller: new AbortController(), operation, completion };
     this.operation = current;
+    let failed = false;
     this.panel.post({
       type: 'status',
       status: { operation, running: true, message: `LHP ${operation}…` },
@@ -292,6 +293,7 @@ export class Controller implements vscode.Disposable {
         },
       );
     } catch (error) {
+      failed = !current.controller.signal.aborted;
       if (error instanceof BridgeError && error.code === 'PROCESS_SHUTDOWN') {
         this.shutdownFailed = true;
         throw error;
@@ -310,7 +312,9 @@ export class Controller implements vscode.Disposable {
               ? 'Python shutdown failed.'
               : current.controller.signal.aborted
                 ? 'Operation cancelled.'
-                : 'Ready.',
+                : failed
+                  ? 'Operation failed.'
+                  : 'Ready.',
           },
         });
       }
@@ -322,60 +326,19 @@ export class Controller implements vscode.Disposable {
       this.bootstrap();
       return;
     }
-    const project = this.project;
-    const epoch = this.epoch;
-    await this.run('snapshot', async (signal) => {
-      const runtime = await inspectRuntime(project, this.context, this.bridge, signal);
-      const context = {
-        project: project.summary,
-        environment: this.environment(project),
-        environments: [this.environment(project)],
-        runtime,
-        trusted: true,
-      };
-      let snapshot: ProjectSnapshot;
-      if (!runtime.compatible)
-        snapshot = {
-          revision: epoch,
-          context,
-          flowgroups: [],
-          flowgroupEdges: [],
-          pipelines: [],
-          documents: [],
-          catalog: { actions: [], templates: [], presets: [], blueprints: [], schemas: [] },
-          diagnostics: [],
-          stale: true,
-          notices: [runtime.message ?? 'Select or set up a compatible Python environment.'],
-        };
-      else {
-        snapshot = normalizeSnapshot(
-          project.root,
-          await this.call('snapshot', project, runtime, signal),
-          context,
-          epoch,
-        );
-        snapshot.documents = await snapshotDocuments(project.root, snapshot);
-        if (snapshot.stale && this.snapshot?.context.project.id === project.summary.id)
-          snapshot = {
-            ...this.snapshot,
-            revision: epoch,
-            context: snapshot.context,
-            diagnostics: snapshot.diagnostics,
-            documents: snapshot.documents,
-            stale: true,
-            notices: ['Showing the last valid graph while source errors are corrected.'],
-          };
-      }
-      if (epoch !== this.epoch || signal.aborted || this.project !== project) return;
-      this.snapshot = snapshot;
-      this.panel.post({ type: 'snapshot', snapshot });
-      await this.problems.update(
-        project.root,
-        snapshot.diagnostics,
-        () => epoch === this.epoch && project === this.project,
-      );
-      if (epoch === this.epoch && project === this.project) this.onSnapshot(snapshot, project.root);
-    });
+    await refreshProject(this);
+  }
+  async publishSnapshot(snapshot: ProjectSnapshot, project: Project, epoch: number): Promise<void> {
+    if (epoch !== this.epoch || project !== this.project) return;
+    this.snapshot = snapshot;
+    this.panel.post({ type: 'snapshot', snapshot });
+    await this.problems.update(
+      project.root,
+      snapshot.diagnostics,
+      () => epoch === this.epoch && project === this.project,
+    );
+    if (epoch === this.epoch && project === this.project && snapshot.refreshState === 'ready')
+      this.onSnapshot(snapshot, project.root);
   }
   async selectProject(id?: string): Promise<void> {
     if (!this.projects.length) this.projects = await discoverProjects();
