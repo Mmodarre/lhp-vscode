@@ -78,7 +78,9 @@ def source_mirror(
         ".tmpl",
     }
     with tempfile.TemporaryDirectory(prefix="lhp-editor-inspection-") as temporary:
-        mirror = Path(temporary)
+        # Temp providers may return an alias (/var on macOS, short paths on
+        # Windows). Compare overlay targets against the same canonical root.
+        mirror = Path(temporary).resolve()
         total = 0
         count = 0
         pending = [root]

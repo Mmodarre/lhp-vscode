@@ -6,6 +6,7 @@ import json
 import os
 import tempfile
 import unittest
+from unittest.mock import patch
 import test_bridge
 import sys
 
@@ -20,6 +21,33 @@ class InspectionTests(unittest.TestCase):
         response = self.request(operation, root, **kwargs)
         self.assertEqual(response["type"], "result", response)
         return response["result"]
+
+    def test_mirror_canonicalizes_temp_alias_before_overlay_containment(self):
+        temporary_directory = tempfile.TemporaryDirectory
+        with temporary_directory() as directory:
+            parent = Path(directory).resolve()
+            root = parent / "project"
+            root.mkdir()
+            (parent / "nested").mkdir()
+            (root / "lhp.yaml").write_text("name: alias_test\n", encoding="utf-8")
+            # A real alias spelling exercises the containment comparison on
+            # every platform without requiring permission to create symlinks.
+            alias_parent = parent / "nested" / ".."
+            with patch(
+                "lhp_inspection.tempfile.TemporaryDirectory",
+                side_effect=lambda **kwargs: temporary_directory(
+                    dir=str(alias_parent), **kwargs
+                ),
+            ):
+                with source_mirror(
+                    root,
+                    [{"path": "pipelines/draft.yaml", "text": "flowgroup: draft\n"}],
+                ) as mirror:
+                    self.assertEqual(mirror, mirror.resolve())
+                    self.assertEqual(
+                        (mirror / "pipelines/draft.yaml").read_text(encoding="utf-8"),
+                        "flowgroup: draft\n",
+                    )
 
     def test_dataset_mirror_excludes_nested_projects_and_rejects_their_drafts(self):
         with tempfile.TemporaryDirectory() as directory:
