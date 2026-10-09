@@ -10,7 +10,7 @@ export async function run(): Promise<void> {
   const root = process.env.LHP_PERF_PROJECT;
   const python = process.env.LHP_TEST_PYTHON;
   assert.ok(root && python, 'Performance project and compatible Python are explicit');
-  const extension = vscode.extensions.getExtension<ExtensionApi>('Mmodarre.lhp-vscode');
+  const extension = vscode.extensions.getExtension<ExtensionApi>('MEHDIMODARRESSI.lhp-vscode');
   assert.ok(extension);
   const api = await extension.activate();
   const id = vscode.Uri.file(root).toString();

@@ -2,8 +2,8 @@
   "name": "lhp-vscode",
   "displayName": "Lakehouse Plumber",
   "description": "Native YAML, guided graphs and forms for Lakehouse Plumber pipelines.",
-  "version": "0.3.0",
-  "publisher": "Mmodarre",
+  "version": "0.3.1",
+  "publisher": "MEHDIMODARRESSI",
   "license": "Apache-2.0",
   "repository": {
     "type": "git",
@@ -747,12 +747,13 @@
     "test": "vitest run",
     "test:bridge": "python3 -m unittest discover -s bridge/tests -v",
     "test:extension": "node scripts/test-extension.mjs",
-    "check": "npm run typecheck && npm run lint && npm run build && npm test && npm run test:bridge",
+    "check": "npm run typecheck && npm run lint && npm run build && npm test && npm run test:bridge && npm run test:release",
     "audit:production": "npm audit --omit=dev",
     "package": "npm run build && node scripts/package.mjs && node scripts/check-package.mjs",
     "vscode:prepublish": "npm run build",
     "format": "prettier --write src webview/src tests scripts *.json *.mjs vitest.config.mts",
-    "format:check": "prettier --check src webview/src tests scripts *.json *.mjs vitest.config.mts"
+    "format:check": "prettier --check src webview/src tests scripts *.json *.mjs vitest.config.mts",
+    "test:release": "node --test tests/release/*.test.mjs"
   },
   "dependencies": {
     "@xyflow/react": "12.12.0",
@@ -779,6 +780,8 @@
     "typescript": "6.0.3",
     "typescript-eslint": "8.70.0",
     "vitest": "5.0.3",
-    "yauzl": "3.4.0"
+    "xml2js": "0.6.2",
+    "yauzl": "3.4.0",
+    "yazl": "2.5.1"
   }
 }

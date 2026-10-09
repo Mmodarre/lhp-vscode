@@ -50,7 +50,7 @@ async function mutate(
 }
 
 export async function run(): Promise<void> {
-  const extension = vscode.extensions.getExtension<ExtensionApi>('Mmodarre.lhp-vscode');
+  const extension = vscode.extensions.getExtension<ExtensionApi>('MEHDIMODARRESSI.lhp-vscode');
   assert.ok(extension, 'extension installed');
   const api = await extension.activate();
   assert.ok(

@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.3.1
+
+- Prepare the first Marketplace pre-release under `MEHDIMODARRESSI.lhp-vscode`, carrying forward the 0.3.0 sandbox, source-navigation, YAML and guided authoring behavior. The earlier VSIX used `Mmodarre.lhp-vscode`; uninstall that extension ID before installing this one, then review extension-local selections.
+- Add real VS Code screenshots, first-run and existing-environment repair guidance, support information, and a provenance-checked GitHub pre-release handoff for manual Marketplace upload. Marketplace account creation and upload are separate publisher actions.
+
 ## 0.3.0
 
 - Add per-project Sandbox Off/On, native `.lhp/profile.yaml` setup, effective-scope review, and display-only Show all. Selected pipelines, namespace and environment now govern validation, source preview and confirmed generation through the reviewed LHP core APIs.

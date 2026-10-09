@@ -1,3 +1,18 @@
+# 0.3.1 Marketplace pre-release checklist
+
+Target extension ID: **`MEHDIMODARRESSI.lhp-vscode`**. This is distinct from the earlier `Mmodarre.lhp-vscode` VSIX identity. [Manual-first release guide](docs/marketplace-release.md) defines the exact main/CI/tag/GitHub artifact handoff, first Marketplace upload and later authentication boundary. A GitHub pre-release or green CI is not a live Marketplace listing.
+
+- [x] Prepare Marketplace-facing README, support and 0.3.1 changelog copy with Python 3.11+, reviewed Git core capability, existing-environment repair, source-only preview and generation replacement limits.
+- [x] Capture four unedited native VS Code screenshots using an audited packaged VSIX and a synthetic project; include sidebar, action graph, native SQL/YAML and Sandbox On/Show all without customer data or local paths.
+- [ ] Finalize 0.3.1 publisher/package metadata, pre-release manifest, clean-source VSIX provenance and exact-CI-artifact GitHub release workflow; independently review and run focused regressions.
+- [ ] Pass required local gates and Linux/macOS/Windows CI on the final source; audit the 0.3.1 VSIX, README image links, support/licence/notice inclusion, checksum and release sidecars.
+- [ ] Merge reviewed source to `main`, pass main push CI, tag the exact current commit and run the guarded GitHub pre-release handoff with the matching CI run ID.
+- [ ] Create/verify publisher ID `MEHDIMODARRESSI`, manually upload the exact pre-release VSIX, verify the live listing and install it from Marketplace in an isolated desktop profile. Record the result and identity-migration behavior. No automated Marketplace authentication or upload is configured.
+
+The four screenshots were captured on VS Code 1.106.0 from the audited 0.3.0 VSIX; 0.3.1 carries that authoring UI forward while changing publisher/release metadata. The source fixture and native profile are isolated under `.tmp/`. The user's Mac project has not been accessed or installed from this Linux session.
+
+---
+
 # 0.3.0 delivery checklist
 
 Delivery is complete for runtime `11f9095258d4cc59054ab5ad0eb021f188d4425e`. The earlier runtime `0e2e461060cf4c8e8370d487aab32327380d918b` and its VSIX are superseded for installation: pip could retain an older same-version core during an existing-environment repair. The final installer explicitly reinstalls the reviewed Git build when the user chooses **Install or repair LHP in this environment** and verifies `sandbox_editor` before reporting success. A disposable same-version Git/pip test reproduced the old behavior and verified the repair.

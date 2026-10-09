@@ -553,7 +553,7 @@ export class Controller implements vscode.Disposable {
   async showHelp(): Promise<void> {
     await vscode.commands.executeCommand(
       'workbench.action.openWalkthrough',
-      'Mmodarre.lhp-vscode#lhp.getStarted',
+      `${this.context.extension.id}#lhp.getStarted`,
       false,
     );
   }
