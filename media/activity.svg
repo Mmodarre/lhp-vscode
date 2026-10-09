@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64.000 64" role="img" aria-label="LHP — Flow + Brick">
+<title>LHP — Flow + Brick</title>
+<g fill="none" stroke-width="10" stroke-linecap="round" stroke-linejoin="round">
+  <path d="M11 11v14a28 28 0 0 0 28 28h14" stroke="#FAF8F5" />
+  <path d="M29 11v14a10 10 0 0 0 10 10h14" stroke="#FAF8F5" />
+</g>
+<g data-lhp-brick="isometric"><defs><mask id="brick-faces" maskUnits="userSpaceOnUse" x="42" y="10" width="16" height="10"><rect x="42" y="10" width="16" height="10" fill="white" /><path d="M43 13 52 15 57 13M52 15V19" fill="none" stroke="black" stroke-width="0.65" /></mask></defs><g mask="url(#brick-faces)"><path d="M43 13 48 11 57 13 52 15Z" fill="#FAF8F5" /><path d="M43 13 52 15 52 19 43 17Z" fill="#FAF8F5" /><path d="M52 15 57 13 57 17 52 19Z" fill="#FAF8F5" /></g></g></svg>

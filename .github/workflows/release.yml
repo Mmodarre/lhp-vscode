@@ -1,0 +1,78 @@
+name: Prepare Marketplace pre-release
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Existing tag matching current main and package version (for example v0.3.1)
+        required: true
+        type: string
+      ci_run_id:
+        description: Successful Desktop extension main push run ID at exactly that source
+        required: true
+        type: string
+permissions:
+  contents: read
+concurrency:
+  group: prepare-marketplace-release
+  cancel-in-progress: false
+jobs:
+  verify:
+    if: github.ref == 'refs/heads/main' && github.repository == 'Mmodarre/lhp-vscode'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      actions: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci --ignore-scripts
+      - name: Verify source, tag and all three CI platforms
+        run: node scripts/prepare-release.mjs download
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ inputs.tag }}
+          RELEASE_CI_RUN_ID: ${{ inputs.ci_run_id }}
+  release:
+    needs: verify
+    if: github.ref == 'refs/heads/main' && github.repository == 'Mmodarre/lhp-vscode'
+    environment: release
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: write
+      actions: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci --ignore-scripts
+      - name: Recheck and download the exact tested artifact
+        id: artifact
+        run: node scripts/prepare-release.mjs download
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ inputs.tag }}
+          RELEASE_CI_RUN_ID: ${{ inputs.ci_run_id }}
+      - name: Create GitHub pre-release for manual Marketplace upload
+        run: >-
+          gh release create "$RELEASE_TAG"
+          ".tmp/release/lhp-vscode-$RELEASE_VERSION.vsix"
+          ".tmp/release/lhp-vscode-$RELEASE_VERSION.vsix.sha256"
+          ".tmp/release/lhp-vscode-$RELEASE_VERSION.provenance.json"
+          --repo "$GITHUB_REPOSITORY" --verify-tag --prerelease
+          --title "Lakehouse Plumber $RELEASE_VERSION (pre-release)"
+          --notes-file .tmp/release-notes.md
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ inputs.tag }}
+          RELEASE_VERSION: ${{ steps.artifact.outputs.version }}

@@ -1,0 +1,46 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>LHP Designer development fixture</title>
+    <link rel="stylesheet" href="../.tmp/webview-demo.css" />
+    <style>
+      :root {
+        --vscode-font-family: system-ui, -apple-system, 'Segoe UI', sans-serif;
+        --vscode-font-size: 13px;
+        --vscode-editor-background: #1e1e1e;
+        --vscode-foreground: #d4d4d4;
+        --vscode-sideBar-background: #252526;
+        --vscode-panel-border: #454545;
+        --vscode-editorWidget-background: #252526;
+      }
+      body {
+        height: 100vh;
+      }
+      .demo-controls {
+        display: flex;
+        gap: 8px;
+        padding: 4px 8px;
+        font: 12px var(--vscode-font-family);
+        background: #333;
+        color: #eee;
+      }
+      .demo-controls a {
+        color: #9cdcfe;
+      }
+    </style>
+  </head>
+  <body>
+    <nav class="demo-controls" aria-label="Development fixture variants">
+      Test-only fixture: <a href="?state=normal">normal</a>
+      <a href="?state=project">project map</a> <a href="?state=data">declared data</a>
+      <a href="?state=stale">invalid YAML / stale</a> <a href="?state=runtime">missing runtime</a>
+      <a href="?state=failed">refresh failure</a>
+      <a href="?state=notices">many notices</a> <a href="?state=large">large graph</a>
+      <a href="?state=empty">no project</a>
+    </nav>
+    <div id="root" style="height: calc(100% - 24px)"></div>
+    <script src="../.tmp/webview-demo.js"></script>
+  </body>
+</html>

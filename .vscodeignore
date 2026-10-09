@@ -1,0 +1,12 @@
+**/*
+!dist/**
+!bridge/lhp_bridge.py
+!bridge/lhp_inspection.py
+!media/**
+!package.json
+!README.md
+!LICENSE
+!NOTICE
+!THIRD_PARTY_NOTICES.md
+!CHANGELOG.md
+!SUPPORT.md

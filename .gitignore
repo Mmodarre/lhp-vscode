@@ -12,3 +12,6 @@ coverage/
 .env.*
 !.env.example
 .DS_Store
+
+# Preserve local approved design workspace without publishing its cache.
+.superdesign/
