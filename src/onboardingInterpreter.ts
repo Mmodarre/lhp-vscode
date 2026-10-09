@@ -134,20 +134,31 @@ export async function browsePython(): Promise<string | undefined> {
 export async function health(
   interpreter: string,
   bridge: BridgeClient,
-): Promise<{ compatible: boolean; version?: string; message?: string }> {
+): Promise<{ compatible: boolean; version?: string; message?: string; capabilities: string[] }> {
   assertWorkspaceTrust();
   try {
     const result = await bridge.call({ operation: 'health', interpreter, timeoutMs: 12_000 });
     if (!isRecord(result))
-      return { compatible: false, message: 'Python did not return a valid LHP health report.' };
+      return {
+        compatible: false,
+        message: 'Python did not return a valid LHP health report.',
+        capabilities: [],
+      };
     const version = typeof result.pythonVersion === 'string' ? result.pythonVersion : undefined;
     return {
       compatible: result.compatible === true && !!version && isSupportedPython(version),
       version,
       message: typeof result.message === 'string' ? result.message : undefined,
+      capabilities: Array.isArray(result.capabilities)
+        ? result.capabilities.filter((value): value is string => typeof value === 'string')
+        : [],
     };
   } catch {
-    return { compatible: false, message: 'Could not start this Python interpreter or query LHP.' };
+    return {
+      compatible: false,
+      message: 'Could not start this Python interpreter or query LHP.',
+      capabilities: [],
+    };
   }
 }
 

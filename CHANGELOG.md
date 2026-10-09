@@ -6,6 +6,7 @@
 - Show physical source files beneath every consuming flowgroup, whole-project known-use counts and navigation, and clear labels for unresolved dynamic references. Add coordinated pipeline and flowgroup tree icons while retaining the existing LHP brand mark and theme-native SQL/Python file icons.
 - Keep source preview scoped and draft-aware, disclose excluded final artifacts, and record only known generated-output mode/profile identity. Both full and sandbox generation replace the selected environment output and managed resources.
 - Require the reviewed sandbox editor core capability for sandbox operations, enforce bounded `.lhp/profile.yaml` mirroring, and reject symlink or special-file profile paths before inspection or generation.
+- Explicitly reinstall the pinned Git core during a user-chosen existing-environment repair, then verify sandbox editor capability; fresh environment setup keeps the ordinary install command.
 
 ## 0.2.1
 

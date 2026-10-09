@@ -87,7 +87,7 @@ async function installSpec(): Promise<string | undefined> {
     options.push({
       label: 'Recommended reviewed LHP integration build',
       installKind: 'git',
-      detail: 'Pinned Git commit; installs only into the new .venv',
+      detail: 'Pinned Git commit; installs into the selected Python environment',
     });
   options.push({
     label: 'Local LHP wheel or source checkout',
@@ -240,11 +240,21 @@ export async function setupEnvironment(
               checkContext();
               await runPythonCommand(base, ['-m', 'venv', envRoot], location, controller.signal);
             }
-            progress.report({ message: 'Installing the selected LHP integration build' });
+            progress.report({
+              message: `${repair ? 'Reinstalling' : 'Installing'} the selected LHP integration build`,
+            });
             checkContext();
             await runPythonCommand(
               python,
-              ['-m', 'pip', 'install', '--disable-pip-version-check', '--no-input', source],
+              [
+                '-m',
+                'pip',
+                'install',
+                '--disable-pip-version-check',
+                '--no-input',
+                ...(repair ? ['--force-reinstall'] : []),
+                source,
+              ],
               location,
               controller.signal,
             );
@@ -258,6 +268,10 @@ export async function setupEnvironment(
       if (!report.compatible)
         throw new Error(
           report.message ?? 'The installed LHP build does not expose the required editor APIs.',
+        );
+      if (source === REVIEWED_LHP_SOURCE && !report.capabilities.includes('sandbox_editor'))
+        throw new Error(
+          'The reviewed LHP build did not activate the sandbox editor APIs in this Python environment. Retry setup or choose another environment.',
         );
       checkContext();
       await persistInterpreter(projectRoot, context, python, checkContext);

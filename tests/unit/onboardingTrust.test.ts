@@ -1,4 +1,4 @@
-import { mkdtemp, readdir, rm } from 'node:fs/promises';
+import { mkdir, mkdtemp, readdir, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import * as path from 'node:path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -25,6 +25,7 @@ const mocks = vi.hoisted(() => {
       showQuickPick: vi.fn(),
       showOpenDialog: vi.fn(),
       showInputBox: vi.fn(),
+      withProgress: vi.fn(),
     },
     executeCommand: vi.fn(),
     runPythonCommand: vi.fn(),
@@ -33,6 +34,7 @@ const mocks = vi.hoisted(() => {
 vi.mock('vscode', () => ({
   workspace: mocks.workspace,
   window: mocks.window,
+  ProgressLocation: { Notification: 1 },
   commands: { executeCommand: mocks.executeCommand },
   Uri: { file: mocks.uri },
   extensions: { getExtension: vi.fn() },
@@ -44,6 +46,7 @@ vi.mock('../../src/onboardingProcess', async (original) => ({
 import { Controller } from '../../src/controller';
 import { createProject, selectInterpreter, setupEnvironment } from '../../src/onboarding';
 import { health, persistInterpreter } from '../../src/onboardingInterpreter';
+import { pythonInVenv, REVIEWED_LHP_SOURCE } from '../../src/onboardingProcess';
 import { ensureOnboardingTrust, onboardingContext } from '../../src/onboardingTrust';
 
 describe('onboarding workspace trust', () => {
@@ -59,6 +62,9 @@ describe('onboarding workspace trust', () => {
     mocks.workspace.isTrusted = false;
     mocks.workspace.workspaceFolders = [{ uri: mocks.uri('/workspace') }];
     mocks.workspace.getConfiguration.mockReturnValue({ get: vi.fn(), update: vi.fn() });
+    mocks.window.withProgress.mockImplementation(async (_options, task) =>
+      task({ report: vi.fn() }, { onCancellationRequested: () => ({ dispose: vi.fn() }) }),
+    );
     update = vi.fn();
     call = vi.fn(async (request: { operation: string }) =>
       request.operation === 'health'
@@ -239,5 +245,105 @@ describe('onboarding workspace trust', () => {
     expect(call).not.toHaveBeenCalled();
     expect(update).not.toHaveBeenCalled();
     expect(mocks.workspace.getConfiguration).not.toHaveBeenCalled();
+  });
+
+  async function repairFixture(installKind: 'git' | 'local' = 'git'): Promise<{
+    projectRoot: string;
+    envRoot: string;
+    python: string;
+  }> {
+    const projectRoot = path.join(parent, 'project');
+    const envRoot = path.join(projectRoot, '.venv');
+    const python = pythonInVenv(envRoot);
+    await mkdir(path.dirname(python), { recursive: true });
+    await writeFile(python, 'existing interpreter');
+    mocks.workspace.isTrusted = true;
+    mocks.window.showQuickPick
+      .mockResolvedValueOnce({ value: 'repair' })
+      .mockResolvedValueOnce({ installKind });
+    return { projectRoot, envRoot, python };
+  }
+
+  it('force-reinstalls the reviewed source in an explicitly chosen existing environment', async () => {
+    const { projectRoot, envRoot, python } = await repairFixture();
+    call.mockResolvedValue({
+      compatible: true,
+      pythonVersion: '3.11.9',
+      capabilities: ['sandbox_editor'],
+    });
+    await expect(setupEnvironment(projectRoot, context, bridge, () => {})).resolves.toBe(python);
+    expect(mocks.runPythonCommand).toHaveBeenCalledExactlyOnceWith(
+      python,
+      [
+        '-m',
+        'pip',
+        'install',
+        '--disable-pip-version-check',
+        '--no-input',
+        '--force-reinstall',
+        REVIEWED_LHP_SOURCE,
+      ],
+      envRoot,
+      expect.any(AbortSignal),
+    );
+    expect(update).toHaveBeenCalledOnce();
+  });
+
+  it('does not report a reviewed install as ready when health lacks sandbox_editor', async () => {
+    const { projectRoot } = await repairFixture();
+    call.mockResolvedValue({ compatible: true, pythonVersion: '3.11.9', capabilities: [] });
+    await expect(setupEnvironment(projectRoot, context, bridge, () => {})).resolves.toBeUndefined();
+    expect(mocks.window.showErrorMessage).toHaveBeenCalledWith(
+      expect.stringContaining('sandbox editor APIs'),
+      'Retry setup',
+      'Choose another folder',
+    );
+    expect(update).not.toHaveBeenCalled();
+  });
+
+  it('reinstalls a selected local build while retaining its ordinary compatibility contract', async () => {
+    const { projectRoot, envRoot, python } = await repairFixture('local');
+    const localSource = path.join(parent, 'local-integration.whl');
+    mocks.window.showOpenDialog.mockResolvedValue([mocks.uri(localSource)]);
+    call.mockResolvedValue({ compatible: true, pythonVersion: '3.11.9', capabilities: [] });
+    await expect(setupEnvironment(projectRoot, context, bridge, () => {})).resolves.toBe(python);
+    expect(mocks.runPythonCommand).toHaveBeenCalledExactlyOnceWith(
+      python,
+      [
+        '-m',
+        'pip',
+        'install',
+        '--disable-pip-version-check',
+        '--no-input',
+        '--force-reinstall',
+        localSource,
+      ],
+      envRoot,
+      expect.any(AbortSignal),
+    );
+    expect(update).toHaveBeenCalledOnce();
+  });
+
+  it('keeps a first-time environment install on the ordinary pip command', async () => {
+    mocks.workspace.isTrusted = true;
+    mocks.window.showQuickPick
+      .mockResolvedValueOnce({ installKind: 'git' })
+      .mockResolvedValueOnce({ path: 'python3' });
+    call.mockResolvedValue({
+      compatible: true,
+      pythonVersion: '3.11.9',
+      capabilities: ['sandbox_editor'],
+    });
+    const envRoot = path.join(context.globalStorageUri.fsPath, 'bootstrap-venv');
+    await expect(setupEnvironment(undefined, context, bridge, () => {})).resolves.toBe(
+      pythonInVenv(envRoot),
+    );
+    expect(mocks.runPythonCommand).toHaveBeenCalledTimes(2);
+    expect(mocks.runPythonCommand).toHaveBeenLastCalledWith(
+      pythonInVenv(envRoot),
+      ['-m', 'pip', 'install', '--disable-pip-version-check', '--no-input', REVIEWED_LHP_SOURCE],
+      context.globalStorageUri.fsPath,
+      expect.any(AbortSignal),
+    );
   });
 });

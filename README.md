@@ -15,6 +15,8 @@ In Restricted Mode, **Create Project**, **Select Python Interpreter** and **Set 
 
 Sandbox features require the reviewed LHP core commit [`4a53d72a96c386a12ff237fc0105a31266007f39`](https://github.com/Mmodarre/Lakehouse_Plumber/commit/4a53d72a96c386a12ff237fc0105a31266007f39). Its distribution metadata still reports `0.9.2`; the extension checks public `sandbox_editor` capability rather than relying on that version string. The earlier 0.9.3 editor integration build remains usable for ordinary project editing but cannot run sandbox preview or generation. Guided setup pins the reviewed commit in an isolated Python environment; a matching local wheel or source checkout can also be selected.
 
+If an existing project `.venv` still has the earlier core, run **LHP: Set Up Python Environment**, choose **Install or repair LHP in this environment**, then **Recommended reviewed LHP integration build**. Repair explicitly reinstalls the pinned commit into that selected environment and verifies its sandbox editor APIs before reporting success. Choose **Create an environment in another folder** if you want to leave the existing environment untouched. A first-time environment setup still uses the ordinary install path.
+
 [Read the user guide](docs/USER_GUIDE.md) for the complete first-pipeline and existing-project workflows.
 
 ## Authoring

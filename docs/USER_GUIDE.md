@@ -4,6 +4,8 @@ The native sidebar and designer share one selected project. The designer offers 
 
 Extension **0.3.0** runs in local desktop VS Code with a local Python 3.11 or newer interpreter. Build its VSIX from source or use the 0.3.0 CI artifact when verified; [delivery evidence](../TODO.md) records completed gates. Open a local folder; trust is required for Python execution and edits, while contained source browsing remains available without it. The [Red Hat YAML extension](https://marketplace.visualstudio.com/items?itemName=redhat.vscode-yaml) supplies YAML schema support and is an extension dependency. Sandbox features require the reviewed [LHP core commit `4a53d72`](https://github.com/Mmodarre/Lakehouse_Plumber/commit/4a53d72a96c386a12ff237fc0105a31266007f39). That Git build currently reports package metadata **0.9.2**; the extension checks public API capabilities, so this version label alone does not indicate a wrong installation. Earlier integration builds can still perform ordinary authoring but cannot run sandbox operations.
 
+To upgrade an existing project `.venv`, run **LHP: Set Up Python Environment**, choose **Install or repair LHP in this environment**, then the reviewed Git build. This is an explicit reinstall into that environment; setup checks for the sandbox editor capability before reporting success. Choose another folder if you want to preserve the existing environment. New environments use the ordinary install path.
+
 ## Open an existing project
 
 1. Open the project folder, or a parent workspace folder, containing `lhp.yaml`. If several LHP projects exist in the workspace, use **LHP: Select Project** or the **Project** row in Configuration.
