@@ -44,6 +44,9 @@ export function classifyResource(
   if (filename === 'lhp.yaml') {
     result.kind = 'configuration';
     result.configurationKind = 'project';
+  } else if (filename === '.lhp/profile.yaml') {
+    result.kind = 'configuration';
+    result.configurationKind = 'profile';
   } else if (filename === configPath || /^pipeline_config[^/]*\.ya?ml$/i.test(basename)) {
     result.kind = 'configuration';
     result.configurationKind = 'pipeline';

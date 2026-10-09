@@ -32,6 +32,7 @@ export function callBridge(
               .map((candidate) => candidate.root),
           ),
     options: {
+      sandboxEnabled: host.sandboxMode === 'on',
       includeTests: configuration.get<boolean>('includeTestsInGeneration', false),
       pipelineConfigPath: host.activePipelineConfig(project),
       nestedProjectRoots: host.projects

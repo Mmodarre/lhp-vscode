@@ -8,7 +8,9 @@ workspace trust and interpreter selection; this adapter validates its boundary.
 from __future__ import annotations
 
 import contextlib
+from dataclasses import fields, is_dataclass
 import importlib.metadata
+import inspect
 import json
 import os
 from pathlib import Path
@@ -17,7 +19,7 @@ import re
 import sys
 from typing import Any
 
-PROTOCOL_VERSION = 1
+PROTOCOL_VERSION = 2
 MAX_REQUEST = 16 * 1024 * 1024
 OPERATIONS = {
     "health",
@@ -77,6 +79,10 @@ def validate_request(value: Any) -> dict[str, Any]:
         raise RequestError("PROJECT_ROOT", "An absolute project root is required.")
     if value.get("options") is not None and not isinstance(value["options"], dict):
         raise RequestError("OPTIONS", "Options must be a JSON object.")
+    options = value.get("options") or {}
+    for key in ("sandboxEnabled", "includeTests"):
+        if key in options and not isinstance(options[key], bool):
+            raise RequestError("OPTIONS", f"{key} must be a boolean.")
     documents = value.get("documents") or []
     if not isinstance(documents, list) or len(documents) > 1000:
         raise RequestError("DOCUMENTS", "Invalid document overlay collection.")
@@ -98,12 +104,20 @@ def validate_request(value: Any) -> dict[str, Any]:
         if filename in seen:
             raise RequestError("DOCUMENT_PATH", "Duplicate document overlay.")
         seen.add(filename)
+        if filename.startswith('.lhp/') and filename != '.lhp/profile.yaml':
+            raise RequestError('DOCUMENT_PATH', 'Only .lhp/profile.yaml may be inspected.')
+        if filename == '.lhp/profile.yaml' and len(document['text'].encode('utf-8')) > 2 * 1024 * 1024:
+            raise RequestError('DOCUMENT_LIMIT', 'Sandbox profile draft exceeds 2 MiB.')
         if isinstance(root, str):
             resolved = (Path(root) / filename).resolve()
             if not resolved.is_relative_to(Path(root).resolve()):
                 raise RequestError(
                     "DOCUMENT_PATH", "Overlay symlinks must stay inside the project."
                 )
+            if filename == '.lhp/profile.yaml' and (
+                (Path(root) / '.lhp').is_symlink() or (Path(root) / filename).is_symlink()
+            ):
+                raise RequestError('DOCUMENT_PATH', 'Sandbox profile must not use symlinks.')
         version = document.get("version")
         if not isinstance(version, int) or isinstance(version, bool) or version < 0:
             raise RequestError("DOCUMENT_VERSION", "Invalid document version.")
@@ -139,6 +153,27 @@ def runtime_health() -> dict[str, Any]:
         family = re.match(r"^0\.9\.(?:2|3)(?:$|[a-z.+-])", version) is not None
         result["compatible"] = family and not missing and sys.version_info >= (3, 11)
         result["capabilities"] = [name for name in REQUIRED_APIS if hasattr(api, name)]
+        sandbox_editor = not missing and all(
+            "sandbox" in inspect.signature(getattr(api, name)).parameters
+            for name in ("inspect_editor_project", "validate_editor_project", "preview_editor_project")
+        ) and "include_tests" in inspect.signature(api.preview_editor_project).parameters
+        sandbox_editor = sandbox_editor and all(
+            hasattr(api, name) and is_dataclass(getattr(api, name)) and required.issubset(
+                {field.name for field in fields(getattr(api, name))}
+            )
+            for name, required in (
+                ('EditorProjectView', {'sandbox_enabled', 'sandbox'}),
+                ('SandboxScopeResult', {'profile_exists', 'namespace', 'patterns', 'resolved_pipelines', 'allowed_envs', 'error', 'strategy', 'table_pattern'}),
+            )
+        )
+        if sandbox_editor:
+            result["capabilities"].append("sandbox_editor")
+        elif result["compatible"]:
+            result["message"] = (
+                "This interpreter supports ordinary editor operations. Sandbox drafts and accurate "
+                "sandbox preview require the LHP core build reviewed for extension 0.3.0. "
+                "Run LHP: Set Up Python Environment to upgrade."
+            )
         if not result["compatible"]:
             result["message"] = (
                 "Install the LHP 0.9.3 integration build with editor APIs. The standard 0.9.2 package does not provide them."
@@ -166,6 +201,13 @@ def dispatch(request: dict[str, Any], emit: Any) -> Any:
     root = Path(request.get("projectRoot", ".")).resolve()
     env = request.get("environment") or "dev"
     options = request.get("options") or {}
+    sandbox = options.get("sandboxEnabled", False) is True
+    sandbox_editor = "sandbox_editor" in health["capabilities"]
+    if not sandbox_editor and (
+        sandbox or any(d["path"] == ".lhp/profile.yaml" for d in request.get("documents") or [])
+    ):
+        raise RequestError("SANDBOX_RUNTIME_UPGRADE", health.get("message", "Upgrade the LHP editor core for sandbox support."))
+    editor_options = {"sandbox": sandbox} if sandbox_editor else {}
     overlays = tuple(
         api.EditorDocumentOverlay(path=d["path"], text=d["text"], version=d["version"])
         for d in request.get("documents") or []
@@ -181,7 +223,8 @@ def dispatch(request: dict[str, Any], emit: Any) -> Any:
     if operation == "snapshot":
         return project_snapshot(
             api.inspect_editor_project(
-                root, env=env, overlays=overlays, pipeline_config_path=configuration
+                root, env=env, overlays=overlays, pipeline_config_path=configuration,
+                **editor_options,
             ),
             api,
         )
@@ -201,6 +244,7 @@ def dispatch(request: dict[str, Any], emit: Any) -> Any:
             configuration,
             request.get("documents") or [],
             options.get("nestedProjectRoots") or [],
+            sandbox=sandbox,
         )
     if operation == "validate":
         return consume(
@@ -210,6 +254,7 @@ def dispatch(request: dict[str, Any], emit: Any) -> Any:
                 overlays=overlays,
                 pipeline_config_path=configuration,
                 include_tests=True,
+                **editor_options,
             ),
             api,
             emit,
@@ -217,7 +262,8 @@ def dispatch(request: dict[str, Any], emit: Any) -> Any:
     if operation == "preview":
         return consume(
             api.preview_editor_project(
-                root, env=env, overlays=overlays, pipeline_config_path=configuration
+                root, env=env, overlays=overlays, pipeline_config_path=configuration,
+                **({**editor_options, "include_tests": options.get("includeTests", False) is True} if sandbox_editor else {}),
             ),
             api,
             emit,
@@ -262,6 +308,12 @@ def dispatch(request: dict[str, Any], emit: Any) -> Any:
             "This runtime does not support the requested guided scaffold.",
         )
     if operation == "generate":
+        if sandbox:
+            # Generation reads the saved profile directly rather than through
+            # the inspection mirror, so apply its file boundary here too.
+            from lhp_inspection import checked_profile_path
+
+            checked_profile_path(root)
         facade = api.LakehousePlumberApplicationFacade.for_project(
             root,
             pipeline_config_path=str((root / configuration).resolve())
@@ -269,6 +321,7 @@ def dispatch(request: dict[str, Any], emit: Any) -> Any:
             else None,
             no_cache=True,
         )
+        scope = api.to_dict(facade.sandbox.describe_scope(env=env)) if sandbox and sandbox_editor else None
         response = consume(
             facade.generate_pipelines(
                 env=env,
@@ -278,6 +331,7 @@ def dispatch(request: dict[str, Any], emit: Any) -> Any:
                     root, cli_no_bundle=False
                 ),
                 pipeline_filter=None,
+                sandbox=sandbox,
             ),
             api,
             emit,
@@ -301,6 +355,9 @@ def dispatch(request: dict[str, Any], emit: Any) -> Any:
             except Exception:
                 modes[pipeline] = "unknown"
         response["editor_packaging"] = modes
+        response["sandbox_enabled"] = sandbox
+        response["sandbox"] = scope
+        response["environment"] = env
         return response
     raise RequestError("OPERATION", "Unsupported operation.")
 
@@ -334,6 +391,8 @@ def project_snapshot(view: Any, api: Any) -> dict[str, Any]:
             "project",
         )
     }
+    data["sandbox_enabled"] = getattr(view, "sandbox_enabled", False)
+    data["sandbox"] = api.to_dict(getattr(view, "sandbox", None))
     data["flowgroups"] = [
         {key: api.to_dict(getattr(flowgroup, key)) for key in fields}
         for flowgroup in view.flowgroups
@@ -384,6 +443,15 @@ def consume(events: Any, api: Any, emit: Any) -> Any:
     return response
 
 
+def safe_editor_message(value: str) -> str:
+    """Project editor errors onto authored paths, not ephemeral mirror paths."""
+    return re.sub(
+        r"(?:[A-Za-z]:)?(?:[/\\][^\s/\\]+)*[/\\]lhp-\s*editor-\s*[A-Za-z0-9_-]+[/\\]",
+        "",
+        value,
+    )
+
+
 def main() -> None:
     request_id = "unknown"
     output = sys.stdout
@@ -424,7 +492,7 @@ def main() -> None:
         code = getattr(error, "code", None) or "LHP_OPERATION"
         # Structured user-facing errors only; never dump traceback/configuration.
         message = getattr(error, "message", None) or str(error)
-        emit("error", {"code": str(code), "message": str(message)[:4000]})
+        emit("error", {"code": str(code), "message": safe_editor_message(str(message))[:4000]})
 
 
 if __name__ == "__main__":

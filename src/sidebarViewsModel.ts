@@ -1,9 +1,9 @@
 import type {
-  ActionNode,
   EditorCatalog,
   ProjectSnapshot,
   ProjectSummary,
   RuntimeInfo,
+  SandboxViewState,
   SourceRef,
 } from './shared/protocol';
 import type {
@@ -11,6 +11,9 @@ import type {
   ProjectResource,
   ProjectResourceIndex,
 } from './shared/projectModel';
+import { actionFileLinks, flowgroupFileLinks, resourceUsage } from './sidebarFileLinks';
+import { configurationRows } from './sidebarConfiguration';
+import { dataRoots, generatedRoots, resourceRoots } from './sidebarOtherRoots';
 
 export type ViewName = 'configuration' | 'pipelines' | 'resources' | 'data' | 'generated';
 export type ItemKind =
@@ -33,6 +36,7 @@ export type ItemIntent =
   | 'designer'
   | 'resource'
   | 'loadData'
+  | 'sandbox'
   | 'none';
 export interface ItemRef {
   id: string;
@@ -56,6 +60,8 @@ export interface ViewItem extends ItemRef {
   expandable: boolean;
   missing?: boolean;
   stale?: boolean;
+  usage?: { count: number; complete: boolean; labels: string[] };
+  outOfScope?: boolean;
 }
 export interface ViewState {
   projects: ProjectSummary[];
@@ -69,17 +75,8 @@ export interface ViewState {
   activePipelineConfig?: string;
   trusted: boolean;
   revision: number;
+  sandbox?: SandboxViewState;
 }
-const CATEGORIES = [
-  ['template', 'Templates'],
-  ['blueprint', 'Blueprints'],
-  ['preset', 'Presets'],
-  ['schema', 'Schemas & transforms'],
-  ['expectations', 'Expectations'],
-  ['sql', 'SQL'],
-  ['python', 'Python'],
-] as const;
-
 /** Native view projection. Nodes are created on expansion, never for unopened actions. */
 export class SidebarViewsModel {
   state: ViewState = { projects: [], trusted: false, revision: 0 };
@@ -107,6 +104,7 @@ export class SidebarViewsModel {
       prev.environment === next.environment &&
       prev.activePipelineConfig === next.activePipelineConfig &&
       prev.trusted === next.trusted &&
+      JSON.stringify(prev.sandbox) === JSON.stringify(next.sandbox) &&
       JSON.stringify(prev.projects) === JSON.stringify(next.projects)
     )
       return false;
@@ -172,71 +170,53 @@ export class SidebarViewsModel {
     if (!this.projectId) return [];
     let rows: ViewItem[];
     if (view === 'configuration') {
-      const project = this.state.projects.find((entry) => entry.id === this.projectId);
-      rows = [
-        this.add(view, 'config', 'project', {
-          label: 'Project',
-          description: project?.name,
-          group: 'project',
-          source: { path: 'lhp.yaml' },
-          expandable: false,
-          intent: 'project',
-        }),
-        this.add(view, 'config', 'environment', {
-          label: 'Environment',
-          group: 'environment',
-          description: this.state.environment ?? this.snapshot?.context.environment ?? 'dev',
-          expandable: false,
-          intent: this.state.trusted ? 'environment' : 'none',
-        }),
-        this.add(view, 'config', 'runtime', {
-          label: 'Python / LHP',
-          group: 'runtime',
-          description: this.state.runtime?.compatible
-            ? `LHP ${this.state.runtime.lhpVersion ?? 'ready'}`
-            : (this.state.runtime?.message ?? 'Choose Python'),
-          expandable: false,
-          intent: this.state.trusted ? 'interpreter' : 'none',
-        }),
-        this.add(view, 'config', 'pipelineConfig', {
-          label: 'Active pipeline config',
-          group: 'pipelineConfig',
-          description: this.state.activePipelineConfig || 'Not selected',
-          source: this.state.activePipelineConfig
-            ? { path: this.state.activePipelineConfig }
-            : undefined,
-          resourceId: this.index?.files.find(
-            (file) => file.path === this.state.activePipelineConfig,
-          )?.id,
-          expandable: false,
-          intent: this.state.activePipelineConfig
-            ? 'pipelineConfig'
-            : this.state.trusted
-              ? 'pipelineConfig'
-              : 'none',
-        }),
-        this.add(view, 'config', 'settings', {
-          label: 'Settings',
-          group: 'settings',
-          expandable: true,
-        }),
-      ];
-    } else if (view === 'pipelines') {
-      rows = (this.snapshot?.pipelines ?? []).map((pipeline) =>
-        this.add(view, 'pipeline', pipeline.name, {
-          label: pipeline.name,
-          description: `${pipeline.flowgroups.length} flowgroups`,
-          pipeline: pipeline.name,
-          expandable: pipeline.flowgroups.length > 0,
-          intent: 'designer',
-          stale: this.snapshot?.stale,
-        }),
+      rows = configurationRows(
+        this.state,
+        this.snapshot,
+        this.index,
+        this.projectId,
+        (key, fields) => this.add(view, 'config', key, fields),
       );
-      const count = this.index?.files.filter((file) => file.kind === 'pipeline').length ?? 0;
+    } else if (view === 'pipelines') {
+      const sandbox = this.state.sandbox;
+      const scoped =
+        sandbox?.mode === 'on' &&
+        sandbox.display === 'selected' &&
+        sandbox.valid &&
+        sandbox.scopeComplete;
+      rows = (this.snapshot?.pipelines ?? [])
+        .filter((pipeline) => !scoped || sandbox.selectedPipelines.includes(pipeline.name))
+        .map((pipeline) =>
+          this.add(view, 'pipeline', pipeline.name, {
+            label: pipeline.name,
+            description: `${pipeline.flowgroups.length} flowgroups${sandbox?.mode === 'on' && sandbox.valid && sandbox.scopeComplete && !sandbox.selectedPipelines.includes(pipeline.name) ? ' · outside sandbox scope' : ''}`,
+            pipeline: pipeline.name,
+            outOfScope:
+              sandbox?.mode === 'on' &&
+              sandbox.valid &&
+              sandbox.scopeComplete &&
+              !sandbox.selectedPipelines.includes(pipeline.name),
+            expandable: pipeline.flowgroups.length > 0,
+            intent: 'designer',
+            stale: this.snapshot?.stale,
+          }),
+        );
+      const fresh =
+        !!this.snapshot && !this.snapshot.stale && this.snapshot.refreshState === 'ready';
+      const used = new Set(
+        fresh
+          ? this.snapshot!.flowgroups.flatMap((fg) =>
+              flowgroupFileLinks(fg).map((file) => file.source.path),
+            )
+          : [],
+      );
+      const count =
+        this.index?.files.filter((file) => file.kind === 'pipeline' && !used.has(file.path))
+          .length ?? 0;
       if (count)
         rows.push(
           this.add(view, 'category', 'authoring', {
-            label: 'Authoring files',
+            label: fresh ? 'Unmapped source files' : 'Source files',
             description: this.index?.complete ? `${count}` : `${count}+ · incomplete`,
             group: 'authoring',
             expandable: true,
@@ -253,84 +233,17 @@ export class SidebarViewsModel {
           ),
         ];
     } else if (view === 'resources') {
-      rows = CATEGORIES.map(([kind, label]) => {
-        const count = this.index?.files.filter((file) => file.kind === kind).length ?? 0;
-        return this.add(view, 'category', kind, {
-          label,
-          group: kind,
-          description: !this.index
-            ? 'Index not loaded'
-            : this.index.loading
-              ? 'Indexing…'
-              : this.index.complete
-                ? String(count)
-                : `${count}+ · incomplete`,
-          expandable: count > 0,
-        });
-      });
-    } else if (view === 'data') {
-      rows = this.data
-        ? [
-            this.add(view, 'category', 'declared', {
-              label: 'Declared tables & sinks',
-              group: 'declared',
-              description: String(
-                this.data.datasets.filter((entry) => entry.kind !== 'external').length,
-              ),
-              expandable: true,
-            }),
-            this.add(view, 'category', 'external', {
-              label: 'External & unresolved',
-              group: 'external',
-              description: String(
-                this.data.datasets.filter((entry) => entry.kind === 'external').length,
-              ),
-              expandable: true,
-            }),
-          ]
-        : [
-            this.add(view, 'notice', 'load', {
-              label: !this.state.trusted
-                ? 'Trust workspace to load declared lineage'
-                : this.state.runtime && !this.state.runtime.compatible
-                  ? 'Select compatible Python for lineage'
-                  : 'Load declared lineage',
-              description: 'Local project model; no warehouse query',
-              expandable: false,
-              intent: !this.state.trusted
-                ? 'none'
-                : this.state.runtime && !this.state.runtime.compatible
-                  ? 'interpreter'
-                  : 'loadData',
-            }),
-          ];
-    } else {
-      const files = this.index?.files.filter((file) => file.kind === 'generated') ?? [];
-      const environments = [...new Set(files.map((file) => file.environment ?? 'other'))].sort();
-      rows = environments.map((environment) =>
-        this.add(view, 'category', environment, {
-          label: environment,
-          group: environment,
-          description: `${
-            files.filter((file) => (file.environment ?? 'other') === environment).length
-          } persisted files`,
-          expandable: true,
-        }),
+      rows = resourceRoots(this.index, (view, kind, key, fields) =>
+        this.add(view, kind, key, fields),
       );
-      if (!rows.length)
-        rows = [
-          this.notice(
-            view,
-            'empty',
-            this.index?.loading
-              ? 'Finding persisted output…'
-              : !this.index
-                ? 'File index not loaded.'
-                : this.index.complete
-                  ? 'No persisted generated output found.'
-                  : 'No generated files indexed; inventory is incomplete.',
-          ),
-        ];
+    } else if (view === 'data') {
+      rows = dataRoots(this.state, this.data, (view, kind, key, fields) =>
+        this.add(view, kind, key, fields),
+      );
+    } else {
+      rows = generatedRoots(this.index, (view, kind, key, fields) =>
+        this.add(view, kind, key, fields),
+      );
     }
     this.cachedRoots.set(view, rows);
     return rows;
@@ -349,6 +262,7 @@ export class SidebarViewsModel {
         parentId: node.id,
         expandable: false,
         intent: 'resource',
+        usage: resourceUsage(this.index, file.path),
       });
     let rows: ViewItem[] = [];
     if (node.kind === 'pipeline')
@@ -362,52 +276,83 @@ export class SidebarViewsModel {
           pipeline: group.pipeline,
           flowgroupId: group.id,
           parentId: node.id,
-          expandable: group.actionCount > 0,
+          expandable: true,
           intent: 'designer',
           stale: this.snapshot?.stale,
         }),
       );
-    else if (node.kind === 'flowgroup')
-      rows = (this.groups.get(node.flowgroupId!)?.actions ?? []).map((action) =>
-        this.add(node.view, 'action', action.id, {
-          label: action.name,
-          description: action.subtype ?? action.type,
-          source: action.source,
+    else if (node.kind === 'flowgroup') {
+      const group = this.groups.get(node.flowgroupId!);
+      rows = (group ? flowgroupFileLinks(group) : []).map((file) =>
+        this.add(node.view, 'resource', JSON.stringify([node.flowgroupId, file.source.path]), {
+          label: file.source.path.split('/').at(-1) ?? file.source.path,
+          description: `${file.role} · ${file.source.path}`,
+          source: file.source,
+          resourceId: this.index?.files.find((entry) => entry.path === file.source.path)?.id,
           pipeline: node.pipeline,
           flowgroupId: node.flowgroupId,
-          actionId: action.id,
           parentId: node.id,
-          expandable: this.actionFiles(action).length > 0,
+          expandable: false,
+          missing: file.missing,
           intent: 'source',
+          usage: resourceUsage(this.index, file.source.path),
           stale: this.snapshot?.stale,
         }),
       );
-    else if (node.kind === 'action')
-      rows = this.actionFiles(
+      rows.push(
+        ...(group?.actions ?? []).map((action) =>
+          this.add(node.view, 'action', action.id, {
+            label: action.name,
+            description: action.subtype ?? action.type,
+            source: action.source,
+            pipeline: node.pipeline,
+            flowgroupId: node.flowgroupId,
+            actionId: action.id,
+            parentId: node.id,
+            expandable: actionFileLinks(action).length > 0,
+            intent: 'source',
+            stale: this.snapshot?.stale,
+          }),
+        ),
+      );
+    } else if (node.kind === 'action')
+      rows = actionFileLinks(
         this.groups.get(node.flowgroupId!)?.actions.find((action) => action.id === node.actionId),
-      ).map(({ source, label, missing }) =>
+      ).map(({ source, role, missing, dynamic }) =>
         this.add(
           node.view,
-          'resource',
+          dynamic ? 'notice' : 'resource',
           JSON.stringify([node.actionId, source.path, source.documentIndex, source.yamlPath]),
           {
-            label: source.label ?? source.path.split('/').at(-1) ?? source.path,
-            description: label,
-            source,
+            label: dynamic
+              ? `Unresolved ${source.path}`
+              : (source.label ?? source.path.split('/').at(-1) ?? source.path),
+            description: dynamic ? `${role} · dynamic path; no physical file resolved` : role,
+            source: dynamic ? undefined : source,
             actionId: node.actionId,
             flowgroupId: node.flowgroupId,
             parentId: node.id,
             expandable: false,
             missing,
-            intent: 'source',
+            intent: dynamic ? 'none' : 'source',
             stale: this.snapshot?.stale,
+            usage: resourceUsage(this.index, source.path),
           },
         ),
       );
     else if (node.view === 'resources' && node.kind === 'category')
       rows = (this.index?.files ?? []).filter((file) => file.kind === node.group).map(resource);
     else if (node.view === 'pipelines' && node.group === 'authoring')
-      rows = (this.index?.files ?? []).filter((file) => file.kind === 'pipeline').map(resource);
+      rows = (this.index?.files ?? [])
+        .filter((file) => {
+          if (file.kind !== 'pipeline') return false;
+          if (!this.snapshot || this.snapshot.stale || this.snapshot.refreshState !== 'ready')
+            return true;
+          return !this.snapshot.flowgroups.some((fg) =>
+            flowgroupFileLinks(fg).some((link) => link.source.path === file.path),
+          );
+        })
+        .map(resource);
     else if (node.view === 'configuration' && node.kind === 'config')
       rows = [
         this.add(node.view, 'notice', 'extension-settings', {
@@ -480,27 +425,6 @@ export class SidebarViewsModel {
     this.cachedChildren.set(node.id, rows);
     return rows;
   }
-  private actionFiles(
-    action?: ActionNode,
-  ): { source: SourceRef; label: string; missing: boolean }[] {
-    if (!action) return [];
-    const files = action.relatedFiles.map((file) => ({
-      source: file as SourceRef,
-      label: file.exists ? file.kind : `${file.kind} · missing`,
-      missing: !file.exists,
-    }));
-    if (action.origin.definition)
-      files.push({ source: action.origin.definition, label: 'shared definition', missing: false });
-    if (action.origin.instance && ['template', 'blueprint'].includes(action.origin.kind))
-      files.push({ source: action.origin.instance, label: 'instance YAML', missing: false });
-    const seen = new Set<string>();
-    return files.filter(({ source }) => {
-      const key = JSON.stringify([source.path, source.documentIndex, source.yamlPath]);
-      if (seen.has(key)) return false;
-      seen.add(key);
-      return true;
-    });
-  }
   resolve(value: unknown): ViewItem {
     if (!value || typeof value !== 'object') throw new Error('Select an LHP tree item first.');
     const ref = value as Partial<ItemRef>;
@@ -539,6 +463,8 @@ export class SidebarViewsModel {
         (this.index?.complete === false ? 'File inventory is incomplete.' : undefined)
       );
     if (view !== 'pipelines') return undefined;
+    if (this.state.sandbox?.mode === 'on' && !this.state.sandbox.scopeComplete)
+      return `Sandbox scope unresolved: ${this.state.sandbox.error ?? 'refresh .lhp/profile.yaml'}. Source browsing remains available.`;
     if (this.snapshot?.refreshState === 'failed') return this.snapshot.refreshError;
     if (this.snapshot?.stale) return 'Showing the last valid graph. Source files remain available.';
     if (!this.snapshot && !this.state.trusted)

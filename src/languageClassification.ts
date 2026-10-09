@@ -12,7 +12,8 @@ export type LhpSchemaKind =
   | 'substitution'
   | 'pipeline_config'
   | 'job_config'
-  | 'schema';
+  | 'schema'
+  | 'profile';
 
 /** Exact declared identities win over directory conventions. Unrelated YAML gets no LHP schema. */
 export function classifyLhpYaml(
@@ -23,6 +24,7 @@ export function classifyLhpYaml(
 ): LhpSchemaKind | undefined {
   if (!/\.ya?ml$/i.test(relative)) return undefined;
   if (relative === 'lhp.yaml') return 'project';
+  if (relative === '.lhp/profile.yaml') return 'profile';
   const file = inventory?.files.find((entry) => entry.path === relative);
   if (file?.kind === 'configuration') {
     if (file.configurationKind === 'pipeline') return 'pipeline_config';

@@ -9,7 +9,15 @@ import type {
   RelatedFile,
   SourceRef,
 } from './shared/protocol';
-import { items, jsonObject, normalizeCatalog, record, sourceRef, text } from './catalog';
+import {
+  items,
+  jsonObject,
+  normalizeCatalog,
+  normalizeRelatedFile,
+  record,
+  sourceRef,
+  text,
+} from './catalog';
 import { createHash } from 'node:crypto';
 
 const stringList = (v: unknown): string[] =>
@@ -47,15 +55,7 @@ export function normalizeDiagnostics(root: string, value: unknown): EditorDiagno
   });
 }
 function relatedFiles(root: string, value: unknown): RelatedFile[] {
-  return items(value).map((v) => {
-    const f = record(v);
-    return {
-      ...sourceRef(root, { path: f.path }),
-      kind: text(f.kind, 'config') as RelatedFile['kind'],
-      exists: f.exists === true,
-      editable: f.exists === true,
-    };
-  });
+  return items(value).map((entry) => normalizeRelatedFile(root, entry));
 }
 /** Converts public DTO casing/shapes; all resolution and SQL analysis stay in LHP. */
 export function normalizeSnapshot(
@@ -96,6 +96,10 @@ export function normalizeSnapshot(
         );
       const inputs = stringList(a.inputs ?? resolved.source);
       inputs.push(...stringList(resolved.depends_on));
+      const actionOrigin =
+        a.origin === 'template' || a.origin === 'blueprint' || a.origin === 'generated'
+          ? a.origin
+          : 'direct';
       return {
         id: identity(source, `${id}:${text(a.name)}`),
         name: text(a.name),
@@ -110,14 +114,9 @@ export function normalizeSnapshot(
         relatedFiles: relatedFiles(root, a.related_files),
         origin: {
           ...origin,
-          kind:
-            a.origin === 'template'
-              ? 'template'
-              : a.origin === 'blueprint'
-                ? 'blueprint'
-                : a.origin === 'generated'
-                  ? 'generated'
-                  : 'direct',
+          kind: actionOrigin,
+          definition: actionOrigin === 'direct' ? undefined : origin.definition,
+          instance: actionOrigin === 'direct' ? undefined : origin.instance,
         },
         editable: a.editable === true,
         readOnlyReason:

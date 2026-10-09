@@ -34,6 +34,35 @@ describe('host boundaries', () => {
       }).type,
     ).toBe('createInstance');
   });
+  it('requires a project revision and allowlisted values for sandbox requests', () => {
+    expect(() =>
+      parseWebviewRequest({ type: 'setSandboxMode', requestId: '1', mode: 'on' }),
+    ).toThrow(/project and revision/);
+    expect(() =>
+      parseWebviewRequest({
+        type: 'setSandboxMode',
+        requestId: '1',
+        mode: 'auto',
+        context: { projectId: 'p', revision: 1 },
+      }),
+    ).toThrow(/Malformed/);
+    expect(() =>
+      parseWebviewRequest({
+        type: 'showUsages',
+        requestId: '1',
+        path: '',
+        context: { projectId: 'p', revision: 1 },
+      }),
+    ).toThrow(/Malformed/);
+    expect(
+      parseWebviewRequest({
+        type: 'setPipelineDisplay',
+        requestId: '1',
+        display: 'all',
+        context: { projectId: 'p', revision: 1 },
+      }).type,
+    ).toBe('setPipelineDisplay');
+  });
   it('contains paths lexically and through filesystem symlinks', async () => {
     const root = await mkdtemp(path.join(tmpdir(), 'lhp-path-'));
     try {

@@ -1,5 +1,6 @@
 import * as vscode from 'vscode';
 import { containedPath, relativePath, ignoredProjectPath } from './paths';
+import { SANDBOX_PROFILE_PATH } from './paths';
 import { planMutation, sourceOffset } from './yamlEdits';
 import type {
   ActionMutation,
@@ -45,6 +46,7 @@ export async function snapshotDocuments(
       ])
       .filter((p): p is string => !!p),
   );
+  if (snapshot.sandbox?.profileExists) paths.add(SANDBOX_PROFILE_PATH);
   for (const overlay of projectOverlays(root, excludedRoots)) paths.add(overlay.path);
   const filenames = [...paths];
   const result = new Array<DocumentSnapshot>(filenames.length);

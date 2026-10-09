@@ -1,7 +1,7 @@
 import * as vscode from 'vscode';
 import type { Controller } from './controller';
 import { openSource } from './documents';
-import { containedPath } from './paths';
+import { containedPath, lexicalPath } from './paths';
 import type { InspectionKind } from './shared/projectModel';
 import { SidebarViewsModel, type ItemRef, type ViewItem, type ViewName } from './sidebarViewsModel';
 
@@ -35,6 +35,7 @@ export class ProjectTreeProvider implements vscode.TreeDataProvider<ViewItem>, v
   constructor(
     readonly model: SidebarViewsModel,
     readonly view: ViewName,
+    readonly extensionUri?: vscode.Uri,
   ) {}
   refresh(): void {
     this.changed.fire(undefined);
@@ -70,7 +71,28 @@ export class ProjectTreeProvider implements vscode.TreeDataProvider<ViewItem>, v
       node.kind === 'config'
         ? `lhp.config.${node.group}${node.source && node.group === 'pipelineConfig' ? '.selected' : ''}${resource ? '.catalogued' : ''}`
         : `lhp.${node.kind}${resource ? `.${resource.kind}${resource.configurationKind ? `.${resource.configurationKind}` : ''}${canCompare ? '.compare' : ''}${resource.kind === 'generated' && resource.authoringSources?.length ? '.authored' : ''}` : ''}`;
-    item.iconPath = new vscode.ThemeIcon(node.missing ? 'warning' : (ICONS[node.kind] ?? 'file'));
+    const physical =
+      !!node.source && /\.(?:ya?ml|sql|py)$/i.test(node.source.path) && node.kind === 'resource';
+    const root = this.model.state.projects.find(
+      (project) => project.id === node.projectId,
+    )?.rootLabel;
+    if (physical && root) {
+      try {
+        item.resourceUri = vscode.Uri.file(lexicalPath(root, node.source!.path));
+      } catch {
+        /* stale source */
+      }
+    }
+    item.iconPath = node.missing
+      ? new vscode.ThemeIcon('warning')
+      : node.kind === 'pipeline' || node.kind === 'flowgroup'
+        ? this.extensionUri && {
+            dark: vscode.Uri.joinPath(this.extensionUri, 'media', `tree-${node.kind}-dark.svg`),
+            light: vscode.Uri.joinPath(this.extensionUri, 'media', `tree-${node.kind}-light.svg`),
+          }
+        : physical && item.resourceUri
+          ? vscode.ThemeIcon.File
+          : new vscode.ThemeIcon(ICONS[node.kind] ?? 'file');
     const runtime =
       node.kind === 'config' && node.group === 'runtime' ? this.model.state.runtime : undefined;
     const projectPath =
@@ -87,6 +109,10 @@ export class ProjectTreeProvider implements vscode.TreeDataProvider<ViewItem>, v
       runtime?.lhpVersion && `LHP ${runtime.lhpVersion}`,
       runtime?.capabilities?.length && `Capabilities: ${runtime.capabilities.join(', ')}`,
       node.stale ? 'Last valid graph; refresh after fixing source errors.' : undefined,
+      node.outOfScope ? 'Outside the selected sandbox scope; Show all is display only.' : undefined,
+      node.usage &&
+        `${node.usage.count} known flowgroup/template consumer(s)${node.usage.complete ? '' : ' (partial)'}`,
+      node.usage?.labels.length && `Known uses: ${node.usage.labels.join(', ')}`,
     ]
       .filter(Boolean)
       .join('\n');
@@ -124,7 +150,7 @@ export class ProjectSidebar implements vscode.Disposable {
   constructor(private readonly host: Controller) {
     this.saved = host.context.workspaceState.get<SavedTreeState>('lhp.sidebarTreeState.v3', {});
     for (const name of SIDEBAR_VIEWS) {
-      const provider = new ProjectTreeProvider(this.model, name);
+      const provider = new ProjectTreeProvider(this.model, name, host.context.extensionUri);
       const tree = vscode.window.createTreeView(`lhp.${name}`, {
         treeDataProvider: provider,
         showCollapseAll: true,
@@ -166,6 +192,12 @@ export class ProjectSidebar implements vscode.Disposable {
       revealProject: async () => this.revealProject(),
       refreshResources: async () => this.host.refreshResources(),
       loadData: async () => this.host.loadData(),
+      toggleSandbox: async () =>
+        this.host.setSandboxMode(this.host.sandboxMode === 'on' ? 'off' : 'on'),
+      configureSandboxProfile: async () => this.host.configureSandboxProfile(),
+      showSandboxScope: async () => this.host.showSandboxScope(),
+      showSelectedPipelines: async () => this.host.setPipelineDisplay('selected'),
+      showAllPipelines: async () => this.host.setPipelineDisplay('all'),
     };
     for (const [name, handler] of Object.entries(handlers))
       this.subscriptions.push(
@@ -196,6 +228,7 @@ export class ProjectSidebar implements vscode.Disposable {
       activePipelineConfig: project ? this.host.activePipelineConfig(project) : undefined,
       trusted: vscode.workspace.isTrusted,
       revision: this.host.epoch,
+      sandbox: this.host.sandboxView,
     });
     for (const name of SIDEBAR_VIEWS) {
       const view = this.views.get(name)!;
@@ -280,6 +313,7 @@ export class ProjectSidebar implements vscode.Disposable {
     const node = this.current(value);
     if (node.intent === 'project') await this.host.selectProject();
     else if (node.intent === 'environment') await this.host.selectEnvironment();
+    else if (node.intent === 'sandbox') await this.host.showSandboxScope();
     else if (node.intent === 'interpreter') await this.host.interpreter();
     else if (node.intent === 'pipelineConfig') {
       if (node.source) await this.openSource(value);

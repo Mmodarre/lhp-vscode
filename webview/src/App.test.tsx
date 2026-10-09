@@ -39,6 +39,101 @@ describe('project graph navigation', () => {
   beforeEach(() => posted.mockClear());
   afterEach(cleanup);
 
+  it('shows the canonical sandbox scope, filters pipeline choices, and treats Show all as display only', async () => {
+    render(<App />);
+    const snapshot = demoSnapshot();
+    snapshot.sandbox = {
+      mode: 'on',
+      display: 'selected',
+      profilePath: '.lhp/profile.yaml',
+      profileExists: true,
+      profileSource: 'saved',
+      namespace: 'alice',
+      patterns: ['silver_curate'],
+      selectedPipelines: ['silver_curate'],
+      totalPipelines: 2,
+      allowedEnvironments: ['dev'],
+      environment: 'dev',
+      valid: true,
+      stale: false,
+      scopeComplete: true,
+      previewParity: 'source-only',
+    };
+    emit({
+      type: 'bootstrap',
+      protocolVersion: PROTOCOL_VERSION,
+      projects: [snapshot.context.project],
+      snapshot,
+      trusted: true,
+    });
+    expect(await screen.findByText('Sandbox On')).toBeTruthy();
+    expect(screen.getByText(/1 of 2 pipelines/)).toBeTruthy();
+    expect(screen.getByText('silver_curate · flowgroups')).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'Generate sandbox profile…' })).toBeTruthy();
+    expect(screen.queryByText('bronze_load · flowgroups')).toBeNull();
+    fireEvent.change(screen.getByLabelText('Pipeline display'), { target: { value: 'all' } });
+    expect(posted.mock.calls.at(-1)?.[0]).toMatchObject({
+      type: 'setPipelineDisplay',
+      display: 'all',
+    });
+    emit({
+      type: 'sandbox',
+      projectId: 'demo',
+      revision: snapshot.revision,
+      sandbox: { ...snapshot.sandbox, display: 'all' },
+    });
+    expect(await screen.findByText('bronze_load · flowgroups')).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'Generate sandbox profile…' })).toBeTruthy();
+  });
+
+  it('labels draft profile generation unavailable and routes known source usages to the host', async () => {
+    render(<App />);
+    const snapshot = demoSnapshot();
+    snapshot.sandbox = {
+      mode: 'on',
+      display: 'selected',
+      profilePath: '.lhp/profile.yaml',
+      profileExists: true,
+      profileSource: 'draft',
+      namespace: 'alice',
+      patterns: ['bronze_load'],
+      selectedPipelines: ['bronze_load'],
+      totalPipelines: 2,
+      allowedEnvironments: ['dev'],
+      environment: 'dev',
+      valid: true,
+      stale: false,
+      scopeComplete: true,
+      previewParity: 'source-only',
+    };
+    snapshot.resourceUsages = {
+      'sql/cleanse_orders.sql': {
+        knownUseCount: 2,
+        usageComplete: false,
+        knownLabels: ['orders_bronze', 'customers_bronze'],
+      },
+    };
+    emit({
+      type: 'bootstrap',
+      protocolVersion: PROTOCOL_VERSION,
+      projects: [snapshot.context.project],
+      snapshot,
+      trusted: true,
+    });
+    expect(await screen.findByText('Unsaved profile draft')).toBeTruthy();
+    expect(
+      (screen.getByRole('button', { name: 'Generate sandbox profile…' }) as HTMLButtonElement)
+        .disabled,
+    ).toBe(true);
+    fireEvent.click(screen.getByRole('button', { name: 'Browse' }));
+    expect(await screen.findByText('cleanse_orders.sql')).toBeTruthy();
+    fireEvent.click(screen.getByRole('button', { name: '2 uses+' }));
+    expect(posted.mock.calls.at(-1)?.[0]).toMatchObject({
+      type: 'showUsages',
+      path: 'sql/cleanse_orders.sql',
+    });
+  });
+
   it('keeps routine successful results out of the full-width notice area', async () => {
     render(<App />);
     const snapshot = demoSnapshot();

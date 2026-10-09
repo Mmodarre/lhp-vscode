@@ -211,6 +211,12 @@ export async function runLanguageTests(api: ExtensionApi): Promise<void> {
       'same open document regains a runtime schema after catalogue refresh',
     );
   } finally {
+    // These editor actions leave native drafts open. Save them before removing
+    // the fixture paths so the next snapshot cannot overlay deleted YAML.
+    for (const document of vscode.workspace.textDocuments.filter(
+      (entry) => entry.isDirty && [authoring, snippetFile].includes(entry.uri.fsPath),
+    ))
+      assert.ok(await document.save(), `saved language test draft: ${document.uri.fsPath}`);
     await rm(sql, { force: true });
     await rm(authoring, { force: true });
     await rm(snippetFile, { force: true });

@@ -68,6 +68,70 @@ class InspectionTests(unittest.TestCase):
                 with source_mirror(root, [], ["../outside"]):
                     pass
 
+    def test_sandbox_mirror_copies_only_bounded_exact_profile_and_draft(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory).resolve()
+            (root / 'lhp.yaml').write_text('name: mirror\n', encoding='utf-8')
+            private = root / '.lhp'
+            private.mkdir()
+            (private / 'profile.yaml').write_text('sandbox:\n  namespace: saved\n', encoding='utf-8')
+            (private / 'secret.yaml').write_text('token: private\n', encoding='utf-8')
+            with source_mirror(root, [], include_profile=True) as mirror:
+                self.assertTrue((mirror / '.lhp/profile.yaml').is_file())
+                self.assertFalse((mirror / '.lhp/secret.yaml').exists())
+            with source_mirror(root, [{'path': '.lhp/profile.yaml', 'text': 'sandbox:\n  namespace: draft\n'}], include_profile=True) as mirror:
+                self.assertIn('draft', (mirror / '.lhp/profile.yaml').read_text(encoding='utf-8'))
+            with source_mirror(root, [{'path': '.lhp/profile.yaml', 'text': 'bad\n'}], include_profile=False) as mirror:
+                self.assertFalse((mirror / '.lhp').exists())
+            with self.assertRaisesRegex(ValueError, 'Only .lhp/profile.yaml'):
+                with source_mirror(root, [{'path': '.lhp/secret.yaml', 'text': 'bad\n'}], include_profile=True):
+                    pass
+            with self.assertRaisesRegex(ValueError, '2 MiB'):
+                with source_mirror(root, [{'path': '.lhp/profile.yaml', 'text': 'x' * (2 * 1024 * 1024 + 1)}], include_profile=True):
+                    pass
+            with patch('lhp_inspection.MAX_MIRROR_BYTES', 45):
+                with self.assertRaisesRegex(ValueError, '256 MiB'):
+                    with source_mirror(root, [{'path': '.lhp/profile.yaml', 'text': 'sandbox:\n  namespace: large_draft\n'}], include_profile=True):
+                        pass
+            (private / 'profile.yaml').unlink()
+            (private / 'profile.yaml').symlink_to(root / 'lhp.yaml')
+            with self.assertRaisesRegex(ValueError, 'symlinks'):
+                with source_mirror(root, [], include_profile=True):
+                    pass
+
+    @unittest.skipUnless(hasattr(os, 'mkfifo'), 'FIFO creation is unavailable')
+    def test_sandbox_profile_fifo_is_rejected_without_opening_it(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory).resolve()
+            (root / 'lhp.yaml').write_text('name: fifo_test\n', encoding='utf-8')
+            private = root / '.lhp'
+            private.mkdir()
+            os.mkfifo(private / 'profile.yaml')
+            with self.assertRaisesRegex(ValueError, 'regular file'):
+                with source_mirror(root, [], include_profile=True):
+                    pass
+            health = self.request('health')['result']
+            if health['compatible'] and 'sandbox_editor' in health['capabilities']:
+                generation = self.request('generate', root, options={'sandboxEnabled': True})
+                self.assertEqual(generation['type'], 'error', generation)
+                self.assertIn('regular file', generation['message'])
+                self.assertFalse((root / 'generated').exists())
+
+    def test_saved_sandbox_generation_rejects_oversize_profile(self):
+        health = self.request('health')['result']
+        if not health['compatible'] or 'sandbox_editor' not in health['capabilities']:
+            self.skipTest('Sandbox editor core required for generation.')
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory).resolve()
+            (root / 'lhp.yaml').write_text('name: large_profile\n', encoding='utf-8')
+            private = root / '.lhp'
+            private.mkdir()
+            (private / 'profile.yaml').write_bytes(b'x' * (2 * 1024 * 1024 + 1))
+            generation = self.request('generate', root, options={'sandboxEnabled': True})
+            self.assertEqual(generation['type'], 'error', generation)
+            self.assertIn('2 MiB', generation['message'])
+            self.assertFalse((root / 'generated').exists())
+
     def test_projected_warning_and_nested_source_strings_are_project_relative(self):
         mirror = Path(tempfile.gettempdir()) / "lhp-editor-inspection-private"
         value = {

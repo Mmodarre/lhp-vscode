@@ -1,16 +1,23 @@
-import type { PreviewResult } from '../../../src/shared/protocol';
+import type { PreviewResult, SandboxViewState } from '../../../src/shared/protocol';
 
 interface PreviewPaneProps {
   preview: PreviewResult | undefined;
   previewStale: boolean;
+  sandbox?: SandboxViewState;
   onShowFile: (path: string) => void;
   onBack: () => void;
 }
 
-export function PreviewPane({ preview, previewStale, onShowFile, onBack }: PreviewPaneProps) {
+export function PreviewPane({
+  preview,
+  previewStale,
+  sandbox,
+  onShowFile,
+  onBack,
+}: PreviewPaneProps) {
   return (
     <div className="wizard" style={{ margin: 0, width: '100%' }}>
-      <h1>Generated output preview</h1>
+      <h1>Generated source preview</h1>
       {!preview ? (
         <p className="lead">
           Preview is not available. Run Preview output to inspect proposed files.
@@ -18,15 +25,23 @@ export function PreviewPane({ preview, previewStale, onShowFile, onBack }: Previ
       ) : (
         <>
           <p className="lead">
-            {preview.parity === 'full'
-              ? 'Full output preview'
-              : 'Source-only preview: this does not include every final generated artifact.'}{' '}
-            Select a file to open its read-only preview in VS Code.
+            {preview.mode === 'on'
+              ? `Sandbox profile${preview.namespace ? ` ${preview.namespace}` : ''}`
+              : 'Full project'}
+            {' · '}
+            {preview.environment ?? sandbox?.environment ?? 'selected environment'}. Select a file
+            to open its read-only preview in VS Code.
           </p>
+          {preview.parity === 'source-only' && (
+            <div className="notice">
+              Source-only preview. It does not include the final bundle, monitoring files, wheel, or
+              every managed resource under resources/lhp.
+            </div>
+          )}
           {previewStale && (
             <div className="notice warn" role="status">
-              Project documents changed after this preview. Run Preview output again before relying
-              on these files.
+              Project documents or generation scope changed after this preview. Run Preview source
+              again before relying on these files.
             </div>
           )}
           {preview.notices.map((item, index) => (

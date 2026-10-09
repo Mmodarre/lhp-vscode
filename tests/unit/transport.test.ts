@@ -5,6 +5,7 @@ import { describe, expect, it } from 'vitest';
 import { BridgeClient } from '../../src/bridgeClient';
 import { NdjsonDecoder, MAX_RESPONSE_BYTES } from '../../src/ndjson';
 import { isJsonValue } from '../../src/shared/guards';
+import { PROTOCOL_VERSION } from '../../src/shared/protocol';
 
 describe('bounded large responses', () => {
   it('decodes fragmented Unicode and multiple frames without losing bytes', () => {
@@ -50,7 +51,7 @@ describe('bounded large responses', () => {
     try {
       await writeFile(
         file,
-        "import json,sys\nr=json.loads(sys.stdin.readline())\nprint(json.dumps(dict(protocolVersion=1,id=r['id'],type='result',result=dict(nodes=list(range(20000)),text=r['options']['text'])),ensure_ascii=False))\n",
+        `import json,sys\nr=json.loads(sys.stdin.readline())\nprint(json.dumps(dict(protocolVersion=${PROTOCOL_VERSION},id=r['id'],type='result',result=dict(nodes=list(range(20000)),text=r['options']['text'])),ensure_ascii=False))\n`,
       );
       const result = await client.call({
         operation: 'health',
@@ -61,7 +62,7 @@ describe('bounded large responses', () => {
       expect((result as { text: string }).text).toBe('α漢😀');
       await writeFile(
         file,
-        "import json,sys\nsys.stdin.readline()\nprint(json.dumps(dict(protocolVersion=1,id='another-request',type='result',result={})))\n",
+        `import json,sys\nsys.stdin.readline()\nprint(json.dumps(dict(protocolVersion=${PROTOCOL_VERSION},id='another-request',type='result',result={})))\n`,
       );
       await expect(client.call({ operation: 'health', interpreter: python })).rejects.toMatchObject(
         { code: 'PROTOCOL_ERROR' },

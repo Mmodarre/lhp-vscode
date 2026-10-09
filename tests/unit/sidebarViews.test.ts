@@ -131,19 +131,46 @@ function state(overrides: Partial<ViewState> = {}): ViewState {
 }
 
 describe('five native LHP views', () => {
-  it('shows exactly five configuration rows and source-aware active config', () => {
+  it('keeps cached tree nodes when only a derived sandbox object is recreated', () => {
+    const model = new SidebarViewsModel();
+    const initial = state({
+      sandbox: {
+        mode: 'off',
+        display: 'selected',
+        profilePath: '.lhp/profile.yaml',
+        profileExists: false,
+        profileSource: 'missing',
+        patterns: [],
+        selectedPipelines: [],
+        totalPipelines: 1,
+        allowedEnvironments: [],
+        environment: 'dev',
+        valid: false,
+        stale: false,
+        scopeComplete: false,
+        previewParity: 'source-only',
+      },
+    });
+    expect(model.update(initial)).toBe(true);
+    const roots = model.roots('pipelines');
+    expect(model.update({ ...initial, sandbox: { ...initial.sandbox! } })).toBe(false);
+    expect(model.roots('pipelines')).toBe(roots);
+  });
+
+  it('shows sandbox state and source-aware active config', () => {
     const model = new SidebarViewsModel();
     model.update(state());
     const rows = model.roots('configuration');
     expect(rows.map((row) => row.label)).toEqual([
       'Project',
       'Environment',
+      'Sandbox',
       'Python / LHP',
       'Active pipeline config',
       'Settings',
     ]);
-    expect(rows[3]?.source?.path).toBe('config/pipeline_config.yaml');
-    expect(model.children(rows[4]!).map((row) => row.source?.path)).toContain(
+    expect(rows[4]?.source?.path).toBe('config/pipeline_config.yaml');
+    expect(model.children(rows[5]!).map((row) => row.source?.path)).toContain(
       'templates/bundle/job_config.yaml',
     );
   });
@@ -160,6 +187,9 @@ describe('five native LHP views', () => {
       'Expectations',
       'SQL',
       'Python',
+      'Authoring YAML',
+      'Configuration files',
+      'Other files',
     ]);
     expect(model.children(categories[0]!).map((row) => row.source?.path)).toEqual([
       'templates/nested/reader.yaml',
@@ -228,7 +258,7 @@ describe('five native LHP views', () => {
     model.update(state());
     const pipeline = model.roots('pipelines').find((row) => row.kind === 'pipeline')!;
     const group = model.children(pipeline).find((row) => row.label === 'inventory_ingestion')!;
-    const action = model.children(group)[0]!;
+    const action = model.children(group).find((row) => row.kind === 'action')!;
     const files = model.children(action);
     expect(files.map((row) => row.description)).toEqual(['shared definition', 'instance YAML']);
     expect(files.map((row) => row.source?.path)).toEqual([
@@ -290,7 +320,7 @@ describe('five native LHP views', () => {
       revision: 1,
     };
     expect(() => model.resolve(unopened)).toThrow(/stale/i);
-    const action = model.children(group)[0]!;
+    const action = model.children(group).find((row) => row.kind === 'action')!;
     expect(action.intent).toBe('source');
     expect(model.resolve(unopened)).toBe(action);
     expect(model.parent(action)).toBe(group);
@@ -306,7 +336,7 @@ describe('five native LHP views', () => {
     model.update(
       state({ snapshot: undefined, datasets: undefined, trusted: false, runtime: undefined }),
     );
-    expect(model.roots('resources')).toHaveLength(7);
+    expect(model.roots('resources')).toHaveLength(10);
     expect(model.roots('pipelines').some((row) => row.group === 'authoring')).toBe(true);
     expect(model.roots('data')[0]?.intent).toBe('none');
     expect(model.roots('data')[0]?.label).toMatch(/Trust/);
@@ -371,7 +401,7 @@ describe('five native LHP views', () => {
       revision: 1,
     };
     expect(() => model.resolve(unopened)).toThrow(/stale/i);
-    expect(model.children(flowgroups[0]!)).toHaveLength(5);
+    expect(model.children(flowgroups[0]!).filter((row) => row.kind === 'action')).toHaveLength(5);
     expect(model.resolve(unopened).label).toBe('action-0');
   });
 });

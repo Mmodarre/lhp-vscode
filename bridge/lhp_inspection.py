@@ -3,13 +3,39 @@
 from __future__ import annotations
 
 import contextlib
+import os
 from pathlib import Path
 import shutil
+import stat
 import tempfile
 from typing import Any, Iterator
 
 MAX_MIRROR_FILES = 50000
 MAX_MIRROR_BYTES = 256 * 1024 * 1024
+MAX_PROFILE_BYTES = 2 * 1024 * 1024
+PROFILE_PATH = '.lhp/profile.yaml'
+
+
+def checked_profile_path(root: Path) -> Path:
+    """The sole private editor input must remain a direct regular project child."""
+    private_dir = root / '.lhp'
+    profile = private_dir / 'profile.yaml'
+    if private_dir.is_symlink() or profile.is_symlink():
+        raise ValueError('Sandbox profile must not use symlinks.')
+    if private_dir.exists() and not private_dir.is_dir():
+        raise ValueError('Sandbox profile parent is not a directory.')
+    if private_dir.resolve() != private_dir or profile.resolve().parent != private_dir:
+        raise ValueError('Sandbox profile path escapes the active project.')
+    try:
+        profile_info = profile.lstat()
+    except FileNotFoundError:
+        pass
+    else:
+        if not stat.S_ISREG(profile_info.st_mode):
+            raise ValueError('Sandbox profile must be a regular file.')
+        if profile_info.st_size > MAX_PROFILE_BYTES:
+            raise ValueError('Sandbox profile exceeds 2 MiB.')
+    return profile
 
 
 def project_file(root: Path, value: Any) -> Path:
@@ -26,13 +52,18 @@ def project_file(root: Path, value: Any) -> Path:
 
 @contextlib.contextmanager
 def source_mirror(
-    root: Path, documents: list[dict[str, Any]], nested_roots: list[str] | None = None
+    root: Path,
+    documents: list[dict[str, Any]],
+    nested_roots: list[str] | None = None,
+    *,
+    include_profile: bool = False,
 ) -> Iterator[Path]:
     """Isolate inspection dependencies, including unsaved source, from all writes.
 
     Copy authoring files only; no symlinks, environment/cache data, arbitrary
     binary input datasets, or generated output. Enforce a disclosed copy budget.
     """
+    root = root.resolve()
     ignored = {
         ".git",
         ".venv",
@@ -109,12 +140,47 @@ def source_mirror(
                 target = mirror / relative
                 target.parent.mkdir(parents=True, exist_ok=True)
                 shutil.copyfile(source, target)
+        if include_profile:
+            profile = checked_profile_path(root)
+            if profile.exists():
+                # O_NONBLOCK prevents a replacement FIFO from hanging before
+                # fstat can reject it. The lstat above rejects a saved FIFO.
+                flags = os.O_RDONLY | getattr(os, 'O_NOFOLLOW', 0) | getattr(os, 'O_NONBLOCK', 0)
+                descriptor = os.open(profile, flags)
+                try:
+                    info = os.fstat(descriptor)
+                    if not stat.S_ISREG(info.st_mode) or info.st_size > MAX_PROFILE_BYTES:
+                        raise ValueError('Sandbox profile must be a regular file of at most 2 MiB.')
+                    with os.fdopen(descriptor, 'rb', closefd=False) as stream:
+                        content = stream.read(MAX_PROFILE_BYTES + 1)
+                    if len(content) > MAX_PROFILE_BYTES:
+                        raise ValueError('Sandbox profile exceeds 2 MiB.')
+                finally:
+                    os.close(descriptor)
+                checked_profile_path(root)
+                total += len(content)
+                count += 1
+                if count > MAX_MIRROR_FILES or total > MAX_MIRROR_BYTES:
+                    raise ValueError('Inspection source mirror including sandbox profile exceeds its 50,000 file or 256 MiB budget.')
+                target = mirror / PROFILE_PATH
+                target.parent.mkdir(parents=True, exist_ok=True)
+                target.write_bytes(content)
         for document in documents:
             filename = document["path"]
+            if not isinstance(filename, str) or not filename or '\\' in filename or Path(filename).is_absolute() or any(part in {'', '.', '..'} for part in filename.split('/')):
+                raise ValueError('An editor draft path must be a canonical project-relative path.')
+            if filename.startswith('.lhp/'):
+                if filename != PROFILE_PATH:
+                    raise ValueError('Only .lhp/profile.yaml may enter the inspection mirror.')
+                if not include_profile:
+                    continue
+                checked_profile_path(root)
+                if len(document['text'].encode('utf-8')) > MAX_PROFILE_BYTES:
+                    raise ValueError('Sandbox profile draft exceeds 2 MiB.')
             original = (root / filename).resolve()
             if (
                 any(original.is_relative_to(nested) for nested in excluded)
-                or any(part in ignored for part in Path(filename).parts)
+                or (filename != PROFILE_PATH and any(part in ignored for part in Path(filename).parts))
                 or any(
                     (parent / "lhp.yaml").is_file()
                     for parent in original.parents
@@ -206,8 +272,10 @@ def dataset_index(
     configuration: str | None,
     documents: list[dict[str, Any]],
     nested_roots: list[str] | None = None,
+    *,
+    sandbox: bool = False,
 ) -> Any:
-    with source_mirror(root, documents, nested_roots) as mirror:
+    with source_mirror(root, documents, nested_roots, include_profile=sandbox) as mirror:
         facade = api.LakehousePlumberApplicationFacade.for_project(
             mirror,
             no_cache=True,
@@ -246,6 +314,9 @@ def dataset_index(
             "datasets": datasets,
             "warnings": api.to_dict(view.warnings),
             "fingerprint": view.fingerprint,
+            "sandbox_enabled": sandbox,
+            "sandbox": api.to_dict(facade.sandbox.describe_scope(env=env)) if sandbox else None,
+            "lineage_scope": "all-authored",
         }
         return rebase_mirror_paths(result, mirror)
 

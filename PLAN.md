@@ -1,3 +1,9 @@
+# Active 0.3.0 implementation: sandbox and source-aware authoring
+
+User approved planning and implementation on 8 October 2026. The [detailed 0.3 plan](docs/0.3-implementation-plan.md) defines ownership, phases, dependencies, limits and acceptance. Target 0.3.0 adds a canonical sandbox profile workflow, selected-pipeline display, exact source/use navigation and a coordinated LHP pipeline/flowgroup icon pair while preserving the 0.2.1 trust fix. Astra owns the isolated public core APIs and tests; Sol host owns TypeScript host/native/shared/resources; Sol GUI owns webview/media, Python bridge/tests, pin/build/package/CI integration and 0.3 documentation; root integrates and reviews. No core E2E changes. The existing LHP logo remains exact. Verification and delivery evidence will be recorded only after the relevant gates actually pass.
+
+---
+
 # Patch 0.2.1: actionable onboarding trust
 
 Replace the new-folder Create Project dead end with the native Manage Workspace Trust action and explicit retry guidance. Keep Create Project, Select Python Interpreter and Set Up Python Environment reachable in Restricted Mode; their host guards block interpreter discovery, Python, settings and project writes until a fresh trusted invocation. Do not queue work behind trust changes. Recheck trust and workspace/project context before delayed onboarding side effects. Preserve all 0.2.0 capabilities and the public core pin. Verification includes cancellation, trust-manager return without consent, explicit trusted retry, stale-scope regressions, native Restricted Mode smoke, existing required gates and audited 0.2.1 packaging.

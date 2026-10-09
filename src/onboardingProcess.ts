@@ -6,7 +6,7 @@ import { isRecord } from './shared/guards';
 import { terminateProcessTree } from './processTree';
 
 /** Reviewed public editor integration source; keep this pinned to an immutable commit. */
-export const REVIEWED_LHP_SHA: string = '98d285ab8a7606867abb5708f2715ebe31a9befc';
+export const REVIEWED_LHP_SHA: string = '4a53d72a96c386a12ff237fc0105a31266007f39';
 export const REVIEWED_LHP_SOURCE: string | undefined =
   REVIEWED_LHP_SHA.length === 40
     ? `git+https://github.com/Mmodarre/Lakehouse_Plumber.git@${REVIEWED_LHP_SHA}`

@@ -35,6 +35,9 @@ export async function runSidebarTests(api: ExtensionApi): Promise<void> {
     'openResource',
     'findResource',
     'findConsumers',
+    'toggleSandbox',
+    'configureSandboxProfile',
+    'showSandboxScope',
     'inspect',
     'findAuthoringSource',
     'help',
@@ -44,8 +47,9 @@ export async function runSidebarTests(api: ExtensionApi): Promise<void> {
   const config = sidebar.providers.get('configuration')!.getChildren();
   assert.deepEqual(
     config.map((row) => row.label),
-    ['Project', 'Environment', 'Python / LHP', 'Active pipeline config', 'Settings'],
+    ['Project', 'Environment', 'Sandbox', 'Python / LHP', 'Active pipeline config', 'Settings'],
   );
+  assert.match(config[2]?.description ?? '', /^Off|^On/);
   const pipeline = sidebar.provider
     .getChildren()
     .find((row) => row.kind === 'pipeline' && row.label === 'bronze');
@@ -57,6 +61,16 @@ export async function runSidebarTests(api: ExtensionApi): Promise<void> {
   assert.equal(second.source?.documentIndex, 1);
   assert.equal(sidebar.provider.getTreeItem(second).command?.command, 'lhp.sidebar.activate');
   const actions = sidebar.provider.getChildren(second);
+  const sourceLink = actions.find(
+    (row) => row.kind === 'resource' && row.source?.path === second.source?.path,
+  );
+  assert.ok(sourceLink, 'flowgroup YAML is a direct physical child of its semantic flowgroup');
+  const sourceItem = sidebar.provider.getTreeItem(sourceLink);
+  assert.equal(
+    sourceItem.resourceUri?.fsPath,
+    path.join(vscode.workspace.workspaceFolders![0]!.uri.fsPath, second.source.path),
+  );
+  assert.equal((sourceItem.iconPath as vscode.ThemeIcon).id, vscode.ThemeIcon.File.id);
   const load = actions.find((row) => row.label === 'load_second');
   const write = actions.find((row) => row.label === 'write_second');
   assert.ok(load && write, 'actions load only when their flowgroup expands');
@@ -107,8 +121,25 @@ export async function runSidebarTests(api: ExtensionApi): Promise<void> {
     messages.push(message);
     originalPost(message);
   };
+  // Native resource discovery can refresh tree nodes without changing the
+  // semantic revision. Reacquire a visible row before issuing a new command.
+  const currentRows = () => {
+    const currentPipeline = sidebar.provider
+      .getChildren()
+      .find((row) => row.kind === 'pipeline' && row.label === 'bronze');
+    assert.ok(currentPipeline);
+    const currentSecond = sidebar.provider
+      .getChildren(currentPipeline)
+      .find((row) => row.label === 'document_second');
+    assert.ok(currentSecond);
+    const currentActions = sidebar.provider.getChildren(currentSecond);
+    const currentLoad = currentActions.find((row) => row.label === 'load_second');
+    const currentWrite = currentActions.find((row) => row.label === 'write_second');
+    assert.ok(currentLoad && currentWrite);
+    return { currentPipeline, currentSecond, currentLoad, currentWrite };
+  };
   try {
-    await sidebar.openDesigner(ref(pipeline));
+    await sidebar.openDesigner(ref(currentRows().currentPipeline));
     assert.ok(
       messages.some(
         (message) =>
@@ -116,7 +147,7 @@ export async function runSidebarTests(api: ExtensionApi): Promise<void> {
           message.selection?.pipeline === 'bronze',
       ),
     );
-    await sidebar.openDesigner(ref(second));
+    await sidebar.openDesigner(ref(currentRows().currentSecond));
     assert.ok(
       messages.some(
         (message) =>
@@ -136,8 +167,9 @@ export async function runSidebarTests(api: ExtensionApi): Promise<void> {
     originalPost(message);
   };
   try {
-    const first = sidebar.openDesigner(ref(load));
-    const next = sidebar.openDesigner(ref(write));
+    const current = currentRows();
+    const first = sidebar.openDesigner(ref(current.currentLoad));
+    const next = sidebar.openDesigner(ref(current.currentWrite));
     host.designerReady();
     await Promise.all([first, next]);
     const ready = startupMessages.filter((message) => message.type === 'bootstrap').at(-1);

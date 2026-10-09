@@ -218,6 +218,8 @@ describe('tolerant LHP YAML cursor context', () => {
     expect(classifyLhpYaml('custom/orders.yaml', snapshot.catalog, index, snapshot)).toBe(
       'authoring',
     );
+    expect(classifyLhpYaml('.lhp/profile.yaml', snapshot.catalog, index, snapshot)).toBe('profile');
+    expect(classifyLhpYaml('.lhp/other.yaml', snapshot.catalog, index, snapshot)).toBeUndefined();
   });
 
   it('finds substitution tokens and cached parse contexts in incomplete drafts', () => {

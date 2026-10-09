@@ -19,6 +19,9 @@ export interface ResourceConsumer {
   pipeline?: string;
   flowgroupId?: string;
   actionId?: string;
+  template?: string;
+  /** Invoking YAML, when the authored reference is in a shared definition. */
+  instance?: SourceRef;
 }
 export interface ProjectResource {
   /** Stable opaque identity; command handlers resolve this against current state. */
@@ -31,6 +34,12 @@ export interface ProjectResource {
   /** Known from catalogue/declarations; physical presence alone does not imply use. */
   registered: boolean;
   consumers: ResourceConsumer[];
+  /** Distinct known flowgroups (or standalone source contexts), across the full project. */
+  knownUseCount?: number;
+  /** Precise authored references; multiple actions may belong to one known use. */
+  knownUses?: ResourceConsumer[];
+  /** False when runtime/source inventory is stale or references can be dynamic. */
+  usageComplete?: boolean;
   /** Verified from a successful generation response, not inferred from filenames. */
   authoringSources?: ResourceConsumer[];
   configurationKind?:
@@ -41,6 +50,7 @@ export interface ProjectResource {
     | 'environment'
     | 'bundle'
     | 'bundle-template'
+    | 'profile'
     | 'other';
   environment?: string;
   generatedKind?: 'source' | 'wheel' | 'bundle' | 'monitoring' | 'other';

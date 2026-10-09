@@ -23,16 +23,26 @@ export interface GraphModel {
   edges: GraphEdge[];
 }
 
-export function projectGraph(snapshot: ProjectSnapshot): GraphModel {
-  const names = new Set(snapshot.pipelines.map((pipeline) => pipeline.name));
+export function projectGraph(snapshot: ProjectSnapshot, selected?: Set<string>): GraphModel {
+  const allNames = new Set(snapshot.pipelines.map((pipeline) => pipeline.name));
+  // Keep immediate upstream pipelines in view as dependency context. Showing
+  // them does not add them to the canonical sandbox generation scope.
+  const names = selected ? new Set([...selected].filter((name) => allNames.has(name))) : allNames;
+  if (selected)
+    for (const edge of snapshot.pipelineEdges ?? []) {
+      if (selected.has(edge.target) && allNames.has(edge.source)) names.add(edge.source);
+    }
   return {
-    items: snapshot.pipelines.map((pipeline) => ({
-      id: pipeline.name,
-      name: pipeline.name,
-      kicker: 'Pipeline',
-      detail: `${pipeline.flowgroups.length} flowgroup${pipeline.flowgroups.length === 1 ? '' : 's'}`,
-      readonly: false,
-    })),
+    items: snapshot.pipelines
+      .filter((pipeline) => names.has(pipeline.name))
+      .map((pipeline) => ({
+        id: pipeline.name,
+        name: pipeline.name,
+        kicker:
+          selected && !selected.has(pipeline.name) ? 'Shared input · outside scope' : 'Pipeline',
+        detail: `${pipeline.flowgroups.length} flowgroup${pipeline.flowgroups.length === 1 ? '' : 's'}`,
+        readonly: Boolean(selected && !selected.has(pipeline.name)),
+      })),
     edges: (snapshot.pipelineEdges ?? []).filter(
       (edge) => names.has(edge.source) && names.has(edge.target),
     ),

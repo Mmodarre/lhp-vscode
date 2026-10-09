@@ -9,6 +9,7 @@ import type {
   ProjectDatasetIndex,
   ProjectSnapshot,
   ProjectSummary,
+  SandboxViewState,
   SourceRef,
 } from '../../src/shared/protocol';
 import { PROTOCOL_VERSION } from '../../src/shared/protocol';
@@ -39,6 +40,7 @@ type Mode =
 
 export function App() {
   const activeProjectRef = useRef<string | undefined>(undefined);
+  const activeRevisionRef = useRef(0);
   const feedbackGenerationRef = useRef(0);
   const requestGenerationRef = useRef(new Map<string, number>());
   const [projects, setProjects] = useState<ProjectSummary[]>([]);
@@ -53,6 +55,7 @@ export function App() {
   const [error, setError] = useState('');
   const [pending, setPending] = useState<string>();
   const [preview, setPreview] = useState<PreviewResult>();
+  const [sandboxUpdate, setSandboxUpdate] = useState<SandboxViewState>();
   const [mode, setMode] = useState<Mode>('pipeline');
   const [pipelineId, setPipelineId] = useState('');
   const [flowgroupId, setFlowgroupId] = useState('');
@@ -70,9 +73,11 @@ export function App() {
     const resetForProject = (projectId?: string) => {
       if (activeProjectRef.current === projectId) return;
       activeProjectRef.current = projectId;
+      activeRevisionRef.current = 0;
       feedbackGenerationRef.current++;
       requestGenerationRef.current.clear();
       setPreview(undefined);
+      setSandboxUpdate(undefined);
       setDatasets(undefined);
       setMode('pipeline');
       setPipelineId('');
@@ -99,6 +104,7 @@ export function App() {
             break;
           }
           resetForProject(incoming.snapshot?.context.project.id);
+          activeRevisionRef.current = incoming.snapshot?.revision ?? 0;
           setProjects(incoming.projects);
           setLogoUri(incoming.logoUri);
           setTrusted(incoming.trusted);
@@ -107,6 +113,7 @@ export function App() {
           // A project switch may bootstrap before its first snapshot arrives.
           // Clear the previous project's graph instead of presenting it as current.
           setSnapshot(incoming.snapshot);
+          setSandboxUpdate(incoming.sandbox ?? incoming.snapshot?.sandbox);
           break;
         case 'select':
           setNavigation(incoming.selection);
@@ -119,6 +126,9 @@ export function App() {
           break;
         case 'snapshot':
           resetForProject(incoming.snapshot.context.project.id);
+          if (incoming.snapshot.revision < activeRevisionRef.current) break;
+          activeRevisionRef.current = incoming.snapshot.revision;
+          setSandboxUpdate(incoming.snapshot.sandbox);
           setSnapshot((current) =>
             !current ||
             current.context.project.id !== incoming.snapshot.context.project.id ||
@@ -127,6 +137,15 @@ export function App() {
               : current,
           );
           if (incoming.snapshot.refreshState !== 'failed') setError('');
+          break;
+        case 'sandbox':
+          if (
+            incoming.projectId !== activeProjectRef.current ||
+            incoming.revision < activeRevisionRef.current
+          )
+            break;
+          setSandboxUpdate(incoming.sandbox);
+          setPreview(undefined);
           break;
         case 'status':
           setStatus(incoming.status);
@@ -274,9 +293,37 @@ export function App() {
     [snapshot, pending, send],
   );
 
+  const sandbox = sandboxUpdate ?? snapshot?.sandbox;
+  const selectedOnly =
+    sandbox?.mode === 'on' &&
+    sandbox.display === 'selected' &&
+    sandbox.valid &&
+    sandbox.scopeComplete;
+  const visiblePipelines =
+    snapshot?.pipelines.filter(
+      (item) => !selectedOnly || sandbox?.selectedPipelines.includes(item.name),
+    ) ?? [];
+  useEffect(() => {
+    if (
+      !selectedOnly ||
+      !pipelineId ||
+      !snapshot?.pipelines.some((item) => item.name === pipelineId)
+    )
+      return;
+    if (visiblePipelines.some((item) => item.name === pipelineId)) return;
+    setPipelineId(visiblePipelines[0]?.name ?? '');
+    setFlowgroupId('');
+    setActionId('');
+    setMode('pipeline');
+  }, [
+    selectedOnly,
+    pipelineId,
+    snapshot?.pipelines,
+    visiblePipelines.map((item) => item.name).join('\0'),
+  ]);
   const pipeline = pipelineId
-    ? snapshot?.pipelines.find((item) => item.name === pipelineId)
-    : snapshot?.pipelines[0];
+    ? visiblePipelines.find((item) => item.name === pipelineId)
+    : visiblePipelines[0];
   const flowgroup = flowgroupId
     ? snapshot?.flowgroups.find((item) => item.id === flowgroupId)
     : snapshot?.flowgroups.find((item) => item.pipeline === pipeline?.name);
@@ -304,7 +351,8 @@ export function App() {
   // change. Keep large graph layout stable across those lightweight updates.
   const graph = useMemo(() => {
     if (!snapshot) return undefined;
-    if (mode === 'project') return projectGraph(snapshot);
+    if (mode === 'project')
+      return projectGraph(snapshot, selectedOnly ? new Set(sandbox?.selectedPipelines) : undefined);
     if (mode === 'data') return currentDatasets ? datasetGraph(currentDatasets) : undefined;
     if (mode === 'flowgroup') return flowgroup ? actionGraph(flowgroup) : undefined;
     return pipeline ? pipelineGraph(snapshot, pipeline.name) : undefined;
@@ -316,6 +364,8 @@ export function App() {
     snapshot?.pipelines,
     snapshot?.flowgroupEdges,
     snapshot?.pipelineEdges,
+    sandbox?.selectedPipelines,
+    selectedOnly,
   ]);
   const syntaxError =
     snapshot?.diagnostics.some((item) => item.layer === 'syntax' && item.severity === 'error') ??
@@ -338,11 +388,19 @@ export function App() {
     refreshState === 'ready' &&
     !syntaxError &&
     !status?.running &&
-    !pending;
+    !pending &&
+    (sandbox?.mode !== 'on' ||
+      (sandbox.valid &&
+        !sandbox.stale &&
+        sandbox.scopeComplete &&
+        sandbox.profileSource === 'saved'));
   const previewStale =
     !!preview &&
     !!snapshot &&
-    snapshot.documents.some((doc) => preview.documentVersions[doc.path] !== doc.version);
+    (snapshot.documents.some((doc) => preview.documentVersions[doc.path] !== doc.version) ||
+      (preview.mode !== undefined && preview.mode !== sandbox?.mode) ||
+      (preview.environment !== undefined && preview.environment !== snapshot.context.environment) ||
+      (preview.namespace !== undefined && preview.namespace !== sandbox?.namespace));
   const choosePipeline = (name: string) => {
     setPipelineId(name);
     setFlowgroupId('');
@@ -374,6 +432,7 @@ export function App() {
     setQueuedGuide(undefined);
     setSnapshot(undefined);
     setPreview(undefined);
+    setSandboxUpdate(undefined);
     setMode('pipeline');
     setMessage('');
     setError('');
@@ -427,6 +486,7 @@ export function App() {
 
   const showingGraph =
     mode === 'project' || mode === 'pipeline' || mode === 'flowgroup' || mode === 'data';
+  const inspectorVisible = showInspector && mode !== 'preview';
   return (
     <div className="app">
       <ProjectChrome
@@ -439,6 +499,7 @@ export function App() {
         dirtyCount={dirtyCount}
         canUndo={canUndo}
         canGenerate={canGenerate}
+        sandbox={sandbox}
         syntaxError={syntaxError}
         message={message}
         error={error}
@@ -455,10 +516,12 @@ export function App() {
         onCreate={chooseCreate}
         send={send}
       />
-      <div className={`body${showInspector ? ' with-inspector' : ''}`}>
+      <div className={`body${inspectorVisible ? ' with-inspector' : ''}`}>
         {browseOpen && (
           <ProjectSidebar
             snapshot={snapshot}
+            visiblePipelines={visiblePipelines}
+            sandbox={sandbox}
             mode={mode}
             pipelineName={pipeline?.name}
             flowgroupId={flowgroup?.id}
@@ -467,6 +530,7 @@ export function App() {
             chooseFlowgroup={chooseFlowgroup}
             onCreateMode={chooseCreate}
             send={send}
+            onOpen={open}
             onClose={() => setBrowseOpen(false)}
           />
         )}
@@ -474,6 +538,8 @@ export function App() {
           {showingGraph && (
             <GraphWorkspace
               snapshot={snapshot}
+              visiblePipelines={visiblePipelines}
+              sandbox={sandbox}
               mode={mode}
               pipeline={pipeline}
               flowgroup={flowgroup}
@@ -545,12 +611,13 @@ export function App() {
             <PreviewPane
               preview={preview}
               previewStale={previewStale}
+              sandbox={sandbox}
               onShowFile={(path) => send({ type: 'showPreviewFile', path })}
               onBack={() => setMode('pipeline')}
             />
           )}
         </main>
-        {showInspector && (
+        {inspectorVisible && (
           <SelectionInspector
             snapshot={snapshot}
             mode={mode}
@@ -565,6 +632,7 @@ export function App() {
             onCancelAdd={() => setShowAddAction(false)}
             onMutate={mutate}
             onOpen={open}
+            onShowUsages={(path) => send({ type: 'showUsages', path })}
             onShowActions={() => setActionId(flowgroup?.actions[0]?.id ?? '')}
             onChooseFlowgroup={chooseFlowgroup}
             onSelectOwner={(source) => {

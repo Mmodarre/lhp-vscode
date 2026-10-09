@@ -35,7 +35,30 @@ function snapshotShape(value: unknown): boolean {
     record(value.context.project) &&
     record(value.context.runtime) &&
     typeof value.context.environment === 'string' &&
-    Array.isArray(value.context.environments)
+    Array.isArray(value.context.environments) &&
+    (value.sandbox === undefined || sandboxShape(value.sandbox))
+  );
+}
+
+function sandboxShape(value: unknown): boolean {
+  return (
+    record(value) &&
+    (value.mode === 'on' || value.mode === 'off') &&
+    (value.display === 'selected' || value.display === 'all') &&
+    value.profilePath === '.lhp/profile.yaml' &&
+    ['saved', 'draft', 'missing'].includes(String(value.profileSource)) &&
+    typeof value.profileExists === 'boolean' &&
+    Array.isArray(value.patterns) &&
+    value.patterns.every((item) => typeof item === 'string') &&
+    Array.isArray(value.selectedPipelines) &&
+    value.selectedPipelines.every((item) => typeof item === 'string') &&
+    Number.isSafeInteger(value.totalPipelines) &&
+    Array.isArray(value.allowedEnvironments) &&
+    typeof value.environment === 'string' &&
+    typeof value.valid === 'boolean' &&
+    typeof value.stale === 'boolean' &&
+    typeof value.scopeComplete === 'boolean' &&
+    ['source-only', 'full', 'unknown'].includes(String(value.previewParity))
   );
 }
 
@@ -77,6 +100,7 @@ export function isHostMessage(value: unknown): value is HostMessage {
         (value.logoUri === undefined || typeof value.logoUri === 'string') &&
         (value.datasets === undefined || datasetShape(value.datasets)) &&
         (value.snapshot === undefined || snapshotShape(value.snapshot)) &&
+        (value.sandbox === undefined || sandboxShape(value.sandbox)) &&
         (value.selection === undefined || selectionShape(value.selection))
       );
     case 'select':
@@ -92,6 +116,12 @@ export function isHostMessage(value: unknown): value is HostMessage {
       );
     case 'snapshot':
       return snapshotShape(value.snapshot);
+    case 'sandbox':
+      return (
+        typeof value.projectId === 'string' &&
+        Number.isSafeInteger(value.revision) &&
+        sandboxShape(value.sandbox)
+      );
     case 'result':
       return typeof value.requestId === 'string' && typeof value.success === 'boolean';
     case 'error':

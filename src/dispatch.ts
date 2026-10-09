@@ -15,6 +15,12 @@ export async function dispatch(host: Controller, request: WebviewRequest): Promi
     'cancel',
     'showHelp',
   ];
+  if (
+    contextFree.includes(request.type) &&
+    request.context?.projectId &&
+    request.context.projectId !== host.project?.summary.id
+  )
+    throw new Error('This request belongs to another project.');
   if (['undo', 'redo', 'openSource'].includes(request.type)) {
     if (request.context?.projectId !== host.project?.summary.id)
       throw new Error('This request belongs to another project.');
@@ -31,6 +37,21 @@ export async function dispatch(host: Controller, request: WebviewRequest): Promi
       break;
     case 'selectEnvironment':
       await host.selectEnvironment(request.environment);
+      break;
+    case 'setSandboxMode':
+      await host.setSandboxMode(request.mode);
+      break;
+    case 'setPipelineDisplay':
+      await host.setPipelineDisplay(request.display);
+      break;
+    case 'configureSandboxProfile':
+      await host.configureSandboxProfile();
+      break;
+    case 'showSandboxScope':
+      await host.showSandboxScope();
+      break;
+    case 'showUsages':
+      await host.showUsages(request.path);
       break;
     case 'selectInterpreter':
       await host.interpreter();

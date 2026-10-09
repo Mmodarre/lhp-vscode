@@ -11,6 +11,7 @@ import type { ActionMutation, ProjectSnapshot, WebviewRequest } from '../../src/
 import { runSidebarTests } from './sidebar';
 import { runLanguageTests } from './language';
 import { runResourceGenerationTests, runResourceTests } from './resources';
+import { runSandboxTests } from './sandbox';
 
 let nextRequestId = 0;
 const requestId = (): string => `extension-test-${++nextRequestId}`;
@@ -318,4 +319,5 @@ export async function run(): Promise<void> {
   }
   await runResourceTests(api);
   await runLanguageTests(api);
+  await runSandboxTests(api);
 }

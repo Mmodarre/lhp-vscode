@@ -7,7 +7,8 @@ import copy
 import importlib.metadata
 import importlib.util
 from pathlib import Path
-from types import SimpleNamespace
+from types import ModuleType, SimpleNamespace
+import sys
 import unittest
 from unittest.mock import patch
 
@@ -19,6 +20,31 @@ spec.loader.exec_module(bridge)
 
 
 class ProjectionTests(unittest.TestCase):
+    def test_editor_errors_show_authored_paths_without_ephemeral_mirror_roots(self):
+        message = "Could not read /tmp/lhp-editor-\nabc123/.lhp/profile.yaml; Context File: /private/tmp/lhp-\neditor-xyz9/.lhp/profile.yaml"
+        safe = bridge.safe_editor_message(message)
+        self.assertEqual(safe.count('.lhp/profile.yaml'), 2)
+        self.assertNotIn('lhp-editor-', safe.replace('\n', ''))
+        self.assertNotIn('/private/tmp/', safe)
+
+    def test_validation_always_includes_test_actions_even_when_generation_option_is_off(self):
+        captured = {}
+        class Completed:
+            pass
+        api = ModuleType('lhp.api')
+        api.EditorDocumentOverlay = lambda **values: values
+        api.validate_editor_project = lambda *args, **kwargs: captured.update(kwargs) or [Completed()]
+        api.ErrorEmitted = type('ErrorEmitted', (), {})
+        api.OperationCompleted = Completed
+        api.to_dict = lambda event: {'response': {'success': True}} if isinstance(event, Completed) else event
+        package = ModuleType('lhp')
+        package.__path__ = []
+        package.api = api
+        with patch.dict(sys.modules, {'lhp': package, 'lhp.api': api}):
+            with patch.object(bridge, 'runtime_health', return_value={'compatible': True, 'capabilities': ['sandbox_editor']}):
+                bridge.dispatch({'operation': 'validate', 'projectRoot': '/tmp', 'options': {'includeTests': False}}, lambda *_: None)
+        self.assertIs(captured['include_tests'], True)
+
     def test_missing_distribution_differs_from_broken_installed_import(self):
         with patch.object(
             importlib.metadata,

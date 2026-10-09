@@ -83,6 +83,17 @@ export function parseWebviewRequest(value: unknown): WebviewRequest {
   ) {
     throw new Error('Invalid designer context.');
   }
+  if (
+    [
+      'setSandboxMode',
+      'configureSandboxProfile',
+      'setPipelineDisplay',
+      'showSandboxScope',
+      'showUsages',
+    ].includes(value.type) &&
+    value.context === undefined
+  )
+    throw new Error('Current project and revision are required for sandbox requests.');
   let valid = true;
   switch (value.type) {
     case 'selectProject':
@@ -90,6 +101,15 @@ export function parseWebviewRequest(value: unknown): WebviewRequest {
       break;
     case 'selectEnvironment':
       valid = nonempty(value.environment);
+      break;
+    case 'setSandboxMode':
+      valid = value.mode === 'off' || value.mode === 'on';
+      break;
+    case 'setPipelineDisplay':
+      valid = value.display === 'selected' || value.display === 'all';
+      break;
+    case 'showUsages':
+      valid = nonempty(value.path);
       break;
     case 'openSource':
       valid = source(value.source);

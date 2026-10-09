@@ -30,6 +30,7 @@ interface SelectionInspectorProps {
   onCancelAdd: () => void;
   onMutate: (mutation: ActionMutation) => void;
   onOpen: (source: SourceRef) => void;
+  onShowUsages: (path: string) => void;
   onShowActions: () => void;
   onChooseFlowgroup: (id: string) => void;
   onSelectOwner: (source: DatasetSource) => void;
@@ -49,6 +50,7 @@ export function SelectionInspector({
   onCancelAdd,
   onMutate,
   onOpen,
+  onShowUsages,
   onShowActions,
   onChooseFlowgroup,
   onSelectOwner,
@@ -79,6 +81,8 @@ export function SelectionInspector({
           canEditGraph={canEdit && flowgroup.editable}
           onOpen={onOpen}
           onMutate={onMutate}
+          resourceUsages={snapshot.resourceUsages}
+          onShowUsages={onShowUsages}
         />
       ) : mode === 'flowgroup' && flowgroup && selectedEdge ? (
         <EdgeInspector

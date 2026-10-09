@@ -6,6 +6,7 @@ import type { EditorCatalog, ProjectSnapshot, SourceRef } from './shared/protoco
 import type { ProjectResourceIndex } from './shared/projectModel';
 import { analyzeYaml, type YamlCursorContext } from './languageContext';
 import { classifyLhpYaml, type LhpSchemaKind } from './languageClassification';
+import { PROFILE_SCHEMA } from './profileSchema';
 import { parameterContext } from './languageParameters';
 import { referenceReplacement, tokenReplacement } from './languageInsert';
 import {
@@ -127,6 +128,7 @@ export class LanguageServices implements vscode.Disposable {
     project.catalog = undefined;
     for (const uri of this.schemas.keys())
       if (uri.startsWith(project.base.toString())) this.schemas.delete(uri);
+    this.registerProfileSchema(project);
   }
   updateInventory(root: string, index: ProjectResourceIndex): void {
     this.ensure(root).inventory = index;
@@ -146,7 +148,12 @@ export class LanguageServices implements vscode.Disposable {
       base: vscode.Uri.from({ scheme: 'lhp-schema', path: `/${key}/empty/` }),
     };
     this.projects.set(root, project);
+    this.registerProfileSchema(project);
     return project;
+  }
+  private registerProfileSchema(project: ProjectCache): void {
+    const uri = vscode.Uri.joinPath(project.base, 'profile.schema.json');
+    this.schemas.set(uri.toString(), JSON.stringify({ ...PROFILE_SCHEMA, $id: uri.toString() }));
   }
   private drop(root: string): void {
     const previous = this.projects.get(root);
@@ -169,6 +176,7 @@ export class LanguageServices implements vscode.Disposable {
         if (uri.startsWith(project.base.toString())) this.schemas.delete(uri);
       project.base = base;
     }
+    this.registerProfileSchema(project);
     for (const item of catalog.schemas) {
       const name = item.kind.endsWith('.json') ? item.kind : `${item.kind}.schema.json`;
       const uri = vscode.Uri.joinPath(base, name);

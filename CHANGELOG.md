@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.3.0
+
+- Add per-project Sandbox Off/On, native `.lhp/profile.yaml` setup, effective-scope review, and display-only Show all. Selected pipelines, namespace and environment now govern validation, source preview and confirmed generation through the reviewed LHP core APIs.
+- Show physical source files beneath every consuming flowgroup, whole-project known-use counts and navigation, and clear labels for unresolved dynamic references. Add coordinated pipeline and flowgroup tree icons while retaining the existing LHP brand mark and theme-native SQL/Python file icons.
+- Keep source preview scoped and draft-aware, disclose excluded final artifacts, and record only known generated-output mode/profile identity. Both full and sandbox generation replace the selected environment output and managed resources.
+- Require the reviewed sandbox editor core capability for sandbox operations, enforce bounded `.lhp/profile.yaml` mirroring, and reject symlink or special-file profile paths before inspection or generation.
+
 ## 0.2.1
 
 - In Restricted Mode, project creation and Python onboarding offer Manage Workspace Trust with explicit retry instructions. Opening trust management or dismissing the prompt does not start Python or write project files.

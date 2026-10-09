@@ -10,8 +10,10 @@ export class PreviewDocuments implements vscode.TextDocumentContentProvider {
   readonly onDidChange = this.changes.event;
   private readonly content = new Map<string, string>();
   private readonly paths = new Map<string, vscode.Uri>();
+  scopeIdentity?: string;
   set(result: PreviewResult): void {
     this.clear();
+    this.scopeIdentity = result.scopeIdentity;
     const revision = randomUUID();
     for (const file of result.files) {
       const key = previewPath(file.path);
@@ -25,6 +27,7 @@ export class PreviewDocuments implements vscode.TextDocumentContentProvider {
     }
   }
   clear(): void {
+    this.scopeIdentity = undefined;
     const old = [...this.content.keys()];
     this.paths.clear();
     this.content.clear();

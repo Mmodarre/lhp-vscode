@@ -7,9 +7,11 @@ import type {
   FlowgroupDetail,
   GraphEdge,
   JsonObject,
+  ProjectSnapshot,
   SourceRef,
 } from '../../../src/shared/protocol';
 import { Fields } from './Fields';
+import { sameSourceRef } from '../model';
 
 function definitionFor(action: ActionNode, catalog: EditorCatalog): ActionDefinition | undefined {
   return (
@@ -174,6 +176,8 @@ export function ActionInspector({
   canEditGraph,
   onOpen,
   onMutate,
+  resourceUsages,
+  onShowUsages,
 }: {
   action: ActionNode;
   detail: FlowgroupDetail;
@@ -181,6 +185,8 @@ export function ActionInspector({
   canEditGraph: boolean;
   onOpen: (source: SourceRef) => void;
   onMutate: (mutation: ActionMutation) => void;
+  resourceUsages?: ProjectSnapshot['resourceUsages'];
+  onShowUsages?: (path: string) => void;
 }) {
   const definition = definitionFor(action, catalog);
   const [draft, setDraft] = useState<JsonObject>(() => structuredClone(action.raw));
@@ -302,22 +308,67 @@ export function ActionInspector({
             This action has no separate project source file. Edit its YAML fields instead.
           </p>
         )}
-        {action.relatedFiles.map((file, index) => (
-          <button
-            className="link-button"
-            key={`${file.path}-${index}`}
-            onClick={() => onOpen(file)}
-            disabled={!file.exists}
-          >
-            <span>
-              {file.kind}: {file.path}
-            </span>{' '}
-            {!file.exists && <span className="badge warn">missing</span>}
-          </button>
-        ))}
+        {action.relatedFiles.map((file, index) => {
+          const usage = resourceUsages?.[file.path];
+          return (
+            <div className="related-source-row" key={`${file.path}-${index}`}>
+              <button
+                className="link-button"
+                onClick={() => onOpen(file)}
+                disabled={!file.exists || file.dynamic}
+              >
+                {file.kind}: {file.path}{' '}
+                {file.dynamic ? (
+                  <span className="badge warn">dynamic path · target unresolved</span>
+                ) : (
+                  !file.exists && <span className="badge warn">missing</span>
+                )}
+              </button>
+              {file.referenceSource && !sameSourceRef(file, file.referenceSource) && (
+                <button
+                  className="link-button"
+                  onClick={() => onOpen(file.referenceSource!)}
+                  title="Open the YAML field that names this file"
+                >
+                  YAML reference
+                </button>
+              )}
+              {!file.dynamic && usage && usage.knownUseCount > 0 && onShowUsages && (
+                <button
+                  className="link-button"
+                  onClick={() => onShowUsages(file.path)}
+                  title={`${usage.knownUseCount} known uses across the project${usage.usageComplete ? '' : '; more may be unresolved'}${usage.knownLabels.length ? `: ${usage.knownLabels.join(', ')}` : ''}`}
+                >
+                  {usage.knownUseCount} known use{usage.knownUseCount === 1 ? '' : 's'}
+                  {usage.usageComplete ? '' : '+'} · Show usages
+                </button>
+              )}
+            </div>
+          );
+        })}
         <p className="field-help">
           Source files open in the native editor. Generated output is not edited here.
         </p>
+      </section>
+      <section className="inspector-group">
+        <h3>Parameter context</h3>
+        {action.resolved ? (
+          <details>
+            <summary>Compare authored and core-resolved action mappings</summary>
+            <p className="field-help">
+              The resolved mapping is returned by LHP inspection. Fields not explicitly resolved by
+              the core may still contain dynamic expressions.
+            </p>
+            <h4>Authored</h4>
+            <pre className="context-json">{JSON.stringify(action.raw, null, 2)}</pre>
+            <h4>Core-resolved</h4>
+            <pre className="context-json">{JSON.stringify(action.resolved, null, 2)}</pre>
+          </details>
+        ) : (
+          <p className="field-help">
+            Resolution is unknown for this action. Review its YAML and any instance parameters.
+          </p>
+        )}
       </section>
       <section className="inspector-group">
         <h3>Configure action</h3>

@@ -18,6 +18,9 @@ import { ProjectWorkspace } from './projectWorkspace';
 import { InspectionDocuments } from './inspectionDocuments';
 import * as resourceActions from './resourceActions';
 import * as inspectionActions from './projectInspection';
+import { configureSandboxProfile } from './sandboxProfile';
+import { sandboxScopeIdentity } from './sandboxState';
+import * as sandboxHost from './sandboxHost';
 import type { InspectionRequest } from './shared/protocol';
 import {
   PROTOCOL_VERSION,
@@ -26,6 +29,7 @@ import {
   type OperationStatus,
   type ProjectSnapshot,
   type RuntimeInfo,
+  type SandboxViewState,
   type DesignerSelection,
   type WebviewRequest,
 } from './shared/protocol';
@@ -52,6 +56,19 @@ export class Controller implements vscode.Disposable {
   projects: Project[] = [];
   project?: Project;
   snapshot?: ProjectSnapshot;
+  get sandboxMode(): 'off' | 'on' {
+    return sandboxHost.sandboxMode(this);
+  }
+  get pipelineDisplay(): 'selected' | 'all' {
+    return sandboxHost.pipelineDisplay(this);
+  }
+  get sandboxView(): SandboxViewState | undefined {
+    return sandboxHost.currentSandboxView(this);
+  }
+  get sandboxIdentity(): string | undefined {
+    const view = this.sandboxView;
+    return view ? sandboxScopeIdentity(view) : undefined;
+  }
   epoch = 0;
   private readonly stateChanged = new vscode.EventEmitter<void>();
   readonly onDidChangeState = this.stateChanged.event;
@@ -142,6 +159,7 @@ export class Controller implements vscode.Disposable {
     if (!relative) return;
     if (relative.startsWith('generated/') || relative.startsWith('resources/lhp/')) {
       this.workspace.scheduleScan();
+      void sandboxHost.noteOutputChanged(this, relative).catch((error) => this.report(error));
       return;
     }
     if (ignoredProjectPath(relative)) return;
@@ -248,6 +266,7 @@ export class Controller implements vscode.Disposable {
       selection: this.designerSelection,
       logoUri: this.panel.logoUri,
       datasets: this.datasets,
+      sandbox: this.sandboxView,
     });
     this.stateChanged.fire();
   }
@@ -354,6 +373,31 @@ export class Controller implements vscode.Disposable {
     if (epoch !== this.epoch || project !== this.project) return;
     this.snapshot = snapshot;
     this.workspace.reconcile();
+    const index = this.workspace.index;
+    snapshot.resourceUsages = index
+      ? Object.fromEntries(
+          index.files
+            .filter((resource) => (resource.knownUseCount ?? 0) > 0)
+            .map((resource) => [
+              resource.path,
+              {
+                knownUseCount: resource.knownUseCount ?? 0,
+                usageComplete: resource.usageComplete === true,
+                knownLabels: [
+                  ...new Set(
+                    (resource.knownUses ?? resource.consumers).map((use) =>
+                      use.template
+                        ? `Template ${use.template}`
+                        : use.flowgroupId
+                          ? use.label.split(' / ').slice(0, 2).join(' / ')
+                          : use.label,
+                    ),
+                  ),
+                ].slice(0, 12),
+              },
+            ]),
+        )
+      : undefined;
     this.panel.post({ type: 'snapshot', snapshot });
     this.stateChanged.fire();
     await this.problems.update(
@@ -403,6 +447,9 @@ export class Controller implements vscode.Disposable {
     if (!selected) return;
     if (!/^[A-Za-z0-9][A-Za-z0-9_.-]*$/.test(selected) || selected.includes('..'))
       throw new Error('Invalid environment name.');
+    const allowed = this.sandboxView?.allowedEnvironments ?? [];
+    if (this.sandboxMode === 'on' && allowed.length && !allowed.includes(selected))
+      throw new Error(`Environment ${selected} is outside the team sandbox policy.`);
     const map = this.context.workspaceState.get<Record<string, string>>('lhp.environments', {});
     this.invalidate();
     await this.context.workspaceState.update('lhp.environments', {
@@ -410,6 +457,24 @@ export class Controller implements vscode.Disposable {
       [project.summary.id]: selected,
     });
     await this.refresh();
+  }
+  async setSandboxMode(mode: 'off' | 'on'): Promise<void> {
+    await sandboxHost.setSandboxMode(this, mode);
+  }
+  async setPipelineDisplay(display: 'selected' | 'all'): Promise<void> {
+    await sandboxHost.setPipelineDisplay(this, display);
+  }
+  async configureSandboxProfile(): Promise<void> {
+    await configureSandboxProfile(this);
+  }
+  async showSandboxScope(): Promise<void> {
+    await sandboxHost.showSandboxScope(this);
+  }
+  async showUsages(path: string): Promise<void> {
+    await sandboxHost.showUsages(this, path);
+  }
+  async recordOutputScope(identity: string): Promise<void> {
+    await sandboxHost.recordOutputScope(this, identity);
   }
   async interpreter(setup = false): Promise<void> {
     if (

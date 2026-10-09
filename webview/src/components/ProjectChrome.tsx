@@ -4,9 +4,11 @@ import type {
   PreviewResult,
   ProjectSnapshot,
   ProjectSummary,
+  SandboxViewState,
 } from '../../../src/shared/protocol';
 import type { RequestBody } from '../host';
 import { ProjectNotices } from './ProjectNotices';
+import { SandboxControls } from './SandboxControls';
 
 interface ProjectChromeProps {
   logoUri?: string;
@@ -18,6 +20,7 @@ interface ProjectChromeProps {
   dirtyCount: number;
   canUndo: boolean;
   canGenerate: boolean;
+  sandbox?: SandboxViewState;
   syntaxError: boolean;
   message: string;
   error: string;
@@ -42,6 +45,7 @@ export function ProjectChrome({
   dirtyCount,
   canUndo,
   canGenerate,
+  sandbox,
   syntaxError,
   message,
   error,
@@ -82,13 +86,15 @@ export function ProjectChrome({
           <span className="badge warn">Stale graph</span>
         ) : null}
         {dirtyCount > 0 && <span className="badge warn">{dirtyCount} unsaved</span>}
-        <button
-          className="button quiet small"
-          onClick={() => setShowInspector(!showInspector)}
-          aria-pressed={showInspector}
-        >
-          Inspector
-        </button>
+        {mode !== 'preview' && (
+          <button
+            className="button quiet small"
+            onClick={() => setShowInspector(!showInspector)}
+            aria-pressed={showInspector}
+          >
+            Inspector
+          </button>
+        )}
       </header>
       <div className="toolbar" role="toolbar" aria-label="Project commands">
         <div className="toolbar-group">
@@ -198,6 +204,8 @@ export function ProjectChrome({
               !snapshot.context.trusted ||
               !runtime.compatible ||
               refreshState !== 'ready' ||
+              (sandbox?.mode === 'on' &&
+                (!sandbox.valid || sandbox.stale || !sandbox.scopeComplete)) ||
               running ||
               !!pending
             }
@@ -211,18 +219,20 @@ export function ProjectChrome({
               !snapshot.context.trusted ||
               !runtime.compatible ||
               refreshState !== 'ready' ||
+              (sandbox?.mode === 'on' &&
+                (!sandbox.valid || sandbox.stale || !sandbox.scopeComplete)) ||
               running ||
               !!pending
             }
           >
-            Preview output
+            Preview source
           </button>
           <button
             className="button accent-secondary small"
             onClick={() => send({ type: 'generate' }, true)}
             disabled={!canGenerate}
           >
-            Generate full project…
+            {sandbox?.mode === 'on' ? 'Generate sandbox profile…' : 'Generate full project…'}
           </button>
           {running && (
             <button className="button danger small" onClick={() => send({ type: 'cancel' })}>
@@ -251,6 +261,11 @@ export function ProjectChrome({
           </details>
         </div>
       </div>
+      <SandboxControls
+        sandbox={sandbox}
+        busy={running || !!pending || !snapshot.context.trusted}
+        send={send}
+      />
       {showRuntimeHelp && (
         <div className="notice warn" role="alert">
           <p>

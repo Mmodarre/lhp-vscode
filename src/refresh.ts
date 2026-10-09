@@ -3,6 +3,9 @@ import { snapshotDocuments } from './documents';
 import { inspectRuntime } from './projects';
 import { normalizeSnapshot } from './snapshot';
 import { failedSnapshot, pendingSnapshot } from './snapshotState';
+import { sandboxView } from './sandboxState';
+import { SANDBOX_PROFILE_PATH } from './paths';
+import * as vscode from 'vscode';
 
 /** Publish current runtime health before potentially expensive project work. */
 export async function refreshProject(host: Controller): Promise<void> {
@@ -36,7 +39,7 @@ export async function refreshProject(host: Controller): Promise<void> {
       runtime,
       trusted: true,
     };
-    const previous = host.snapshot;
+    const previous = host.snapshot?.sandbox?.mode === host.sandboxMode ? host.snapshot : undefined;
     const pending = pendingSnapshot(previous, context, epoch);
     await host.publishSnapshot(pending, project, epoch);
     await host.workspace.bootstrapCatalog(project, runtime, signal).catch((error) => {
@@ -58,6 +61,19 @@ export async function refreshProject(host: Controller): Promise<void> {
       const data = await host.call('snapshot', project, runtime, signal);
       if (epoch !== host.epoch || signal.aborted || host.project !== project) return;
       let snapshot = normalizeSnapshot(project.root, data, context, epoch);
+      snapshot.sandbox = sandboxView(
+        data,
+        snapshot,
+        host.sandboxMode,
+        host.pipelineDisplay,
+        vscode.workspace.textDocuments.some(
+          (document) =>
+            document.isDirty &&
+            document.uri.scheme === 'file' &&
+            document.uri.fsPath ===
+              vscode.Uri.file(project.root + '/' + SANDBOX_PROFILE_PATH).fsPath,
+        ),
+      );
       snapshot.documents = (
         await snapshotDocuments(
           project.root,
@@ -75,6 +91,9 @@ export async function refreshProject(host: Controller): Promise<void> {
           context: snapshot.context,
           diagnostics: snapshot.diagnostics,
           documents: snapshot.documents,
+          sandbox: snapshot.sandbox
+            ? { ...snapshot.sandbox, stale: true, scopeComplete: false }
+            : undefined,
           stale: true,
           refreshState: 'ready',
           notices: ['Showing the last valid graph while source errors are corrected.'],

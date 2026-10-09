@@ -102,6 +102,94 @@ button:disabled {
 .toolbar-spacer {
   flex: 1;
 }
+.sandbox-strip {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px 10px;
+  padding: 6px 10px;
+  border-bottom: 1px solid var(--vscode-panel-border, #555);
+  background: var(--vscode-sideBar-background, #252526);
+}
+.sandbox-status {
+  padding: 2px 7px;
+  border-radius: 4px;
+  border: 1px solid var(--vscode-panel-border, #555);
+  font-weight: 700;
+}
+.sandbox-status.on {
+  color: var(--vscode-badge-foreground, #fff);
+  background: var(--vscode-badge-background, #444);
+}
+.sandbox-summary,
+.sandbox-impact {
+  color: var(--vscode-descriptionForeground, #aaa);
+  font-size: 11px;
+}
+.sandbox-display {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 11px;
+}
+.sandbox-impact,
+.sandbox-error {
+  flex-basis: 100%;
+  margin: 0;
+}
+.sandbox-error {
+  color: var(--vscode-errorForeground, #f44);
+}
+.tree-glyph {
+  display: block;
+  width: 16px;
+  height: 16px;
+}
+.source-list {
+  padding-bottom: 6px;
+}
+.source-row {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  min-width: 0;
+}
+.source-link,
+.source-usage {
+  border: 0;
+  background: none;
+  color: var(--vscode-foreground);
+  font-size: 11px;
+}
+.related-source-row {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 4px 8px;
+}
+.context-json {
+  max-height: 190px;
+  overflow: auto;
+  padding: 7px;
+  border: 1px solid var(--vscode-panel-border, #555);
+  font-size: 11px;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.source-link {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  text-align: left;
+}
+.source-filename {
+  white-space: nowrap;
+}
+.source-usage {
+  flex: none;
+  color: var(--vscode-descriptionForeground, #aaa);
+  text-decoration: underline;
+}
 .body {
   position: relative;
   display: grid;

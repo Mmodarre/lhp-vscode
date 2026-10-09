@@ -48,17 +48,32 @@ export async function findResource(host: Controller): Promise<void> {
 export async function findConsumers(host: Controller, id: string): Promise<void> {
   const project = host.readProject();
   const resource = resolveResource(host, id);
-  const chosen = await vscode.window.showQuickPick(
-    resource.consumers.map((use) => ({ label: use.label, description: use.source.path, use })),
+  const choices = resource.consumers.flatMap((use) => [
     {
-      title: host.snapshot?.stale ? 'Known consumers (semantic graph is stale)' : 'Known consumers',
-      placeHolder: resource.consumers.length
-        ? 'Open authoring source'
-        : 'No static consumers are indexed; dynamic references may still exist.',
+      label: use.label,
+      description: use.source.path,
+      detail: use.template ? 'Shared template reference' : 'Authored file reference',
+      source: use.source,
     },
-  );
+    ...(use.instance && use.instance.path !== use.source.path
+      ? [
+          {
+            label: `${use.label} · invocation`,
+            description: use.instance.path,
+            detail: 'Flowgroup instance YAML',
+            source: use.instance,
+          },
+        ]
+      : []),
+  ]);
+  const chosen = await vscode.window.showQuickPick(choices, {
+    title: host.snapshot?.stale ? 'Known consumers (semantic graph is stale)' : 'Known consumers',
+    placeHolder: resource.consumers.length
+      ? 'Open authoring source'
+      : 'No static consumers are indexed; dynamic references may still exist.',
+  });
   if (chosen && project === host.project)
-    await openSource(project.root, chosen.use.source, false, vscode.ViewColumn.Active);
+    await openSource(project.root, chosen.source, false, vscode.ViewColumn.Active);
 }
 export async function findAuthoringSource(host: Controller, id: string): Promise<void> {
   const project = host.readProject();

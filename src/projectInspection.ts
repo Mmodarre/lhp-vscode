@@ -162,7 +162,7 @@ export async function compareGenerated(host: Controller, id: string): Promise<vo
     );
   const relative = resource.path.replace(/^generated\/[^/]+\//, '');
   const preview = host.previews.uri(relative);
-  if (!preview)
+  if (!preview || host.previews.scopeIdentity !== host.sandboxIdentity)
     throw new Error(
       'Run Preview Generated Source for this environment first. Only matching source previews can be compared.',
     );

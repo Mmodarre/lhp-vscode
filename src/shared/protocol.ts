@@ -1,7 +1,7 @@
 /** The sole host/webview contract. Paths are project-relative POSIX paths; ranges
  * are zero-based UTF-16 editor coordinates. Only the host resolves file URIs.
  * Native TextDocuments are authoritative; every mutation checks their version. */
-export const PROTOCOL_VERSION = 1 as const;
+export const PROTOCOL_VERSION = 2 as const;
 export type JsonValue =
   | null
   | boolean
@@ -68,10 +68,36 @@ export interface ProjectContext {
   runtime: RuntimeInfo;
   trusted: boolean;
 }
+export interface SandboxViewState {
+  mode: 'off' | 'on';
+  /** Display choice never changes the bridge's generation scope. */
+  display: 'selected' | 'all';
+  profilePath: '.lhp/profile.yaml';
+  profileExists: boolean;
+  profileSource: 'saved' | 'draft' | 'missing';
+  namespace?: string;
+  patterns: string[];
+  selectedPipelines: string[];
+  totalPipelines: number;
+  allowedEnvironments: string[];
+  environment: string;
+  strategy?: string;
+  tablePattern?: string;
+  valid: boolean;
+  error?: string;
+  stale: boolean;
+  scopeComplete: boolean;
+  previewParity: 'source-only' | 'full' | 'unknown';
+  generatedOutputScope?: string;
+}
 export interface RelatedFile extends SourceRef {
   kind: 'sql' | 'python' | 'schema' | 'expectations' | 'config' | 'template' | 'blueprint';
   exists: boolean;
   editable: boolean;
+  /** Authored field that points to this file; target path alone is not provenance. */
+  referenceSource?: SourceRef;
+  actionName?: string;
+  dynamic?: boolean;
 }
 export interface Origin {
   kind: 'direct' | 'template' | 'blueprint' | 'generated';
@@ -156,6 +182,7 @@ export interface EditorCatalog {
   blueprints: BlueprintDefinition[];
   presets: { name: string; source?: SourceRef; description?: string }[];
   schemas: { kind: string; schema: JsonObject; patterns: string[] }[];
+  templateRelatedFiles?: Record<string, RelatedFile[]>;
 }
 export interface EditorDiagnostic {
   severity: 'error' | 'warning' | 'information';
@@ -182,6 +209,12 @@ export interface ProjectSnapshot {
   refreshState?: 'loading' | 'ready' | 'failed';
   refreshError?: string;
   notices: string[];
+  sandbox?: SandboxViewState;
+  /** Compact full-project known-use summaries; exact references stay in the host index. */
+  resourceUsages?: Record<
+    string,
+    { knownUseCount: number; usageComplete: boolean; knownLabels: string[] }
+  >;
 }
 export interface PreviewFile {
   path: string;
@@ -194,6 +227,10 @@ export interface PreviewResult {
   notices: string[];
   parity: 'source-only' | 'full';
   documentVersions: Record<string, number>;
+  scopeIdentity?: string;
+  mode?: 'off' | 'on';
+  environment?: string;
+  namespace?: string;
 }
 export interface OperationStatus {
   operation:
@@ -232,6 +269,11 @@ type WebviewRequestBody =
   | { type: 'refresh'; requestId: string }
   | { type: 'selectProject'; requestId: string; projectId: string }
   | { type: 'selectEnvironment'; requestId: string; environment: string }
+  | { type: 'setSandboxMode'; requestId: string; mode: 'off' | 'on' }
+  | { type: 'configureSandboxProfile'; requestId: string }
+  | { type: 'setPipelineDisplay'; requestId: string; display: 'selected' | 'all' }
+  | { type: 'showSandboxScope'; requestId: string }
+  | { type: 'showUsages'; requestId: string; path: string }
   | {
       type: 'mutate';
       requestId: string;
@@ -297,6 +339,7 @@ export type HostMessage =
       selection?: DesignerSelection;
       logoUri?: string;
       datasets?: import('./projectModel').ProjectDatasetIndex;
+      sandbox?: SandboxViewState;
     }
   | { type: 'select'; selection: DesignerSelection }
   | { type: 'datasets'; datasets: import('./projectModel').ProjectDatasetIndex }
@@ -308,6 +351,7 @@ export type HostMessage =
       definition?: string;
     }
   | { type: 'snapshot'; snapshot: ProjectSnapshot }
+  | { type: 'sandbox'; projectId: string; revision: number; sandbox: SandboxViewState }
   | { type: 'result'; requestId: string; success: boolean; message?: string }
   | { type: 'error'; requestId?: string; code: string; message: string; recoverable: boolean }
   | { type: 'status'; status: OperationStatus }
@@ -319,6 +363,11 @@ export const WEBVIEW_REQUEST_TYPES = [
   'refresh',
   'selectProject',
   'selectEnvironment',
+  'setSandboxMode',
+  'configureSandboxProfile',
+  'setPipelineDisplay',
+  'showSandboxScope',
+  'showUsages',
   'mutate',
   'openSource',
   'validate',

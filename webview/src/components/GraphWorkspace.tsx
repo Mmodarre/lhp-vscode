@@ -5,6 +5,7 @@ import type {
   PipelineSummary,
   ProjectDatasetIndex,
   ProjectSnapshot,
+  SandboxViewState,
   SourceRef,
 } from '../../../src/shared/protocol';
 import type { GraphModel } from '../model';
@@ -14,6 +15,8 @@ export type GraphMode = 'project' | 'pipeline' | 'flowgroup' | 'data';
 
 interface GraphWorkspaceProps {
   snapshot: ProjectSnapshot;
+  visiblePipelines: PipelineSummary[];
+  sandbox?: SandboxViewState;
   mode: GraphMode;
   pipeline?: PipelineSummary;
   flowgroup?: FlowgroupDetail;
@@ -42,6 +45,8 @@ interface GraphWorkspaceProps {
 
 export function GraphWorkspace({
   snapshot,
+  visiblePipelines,
+  sandbox,
   mode,
   pipeline,
   flowgroup,
@@ -94,15 +99,20 @@ export function GraphWorkspace({
         </h2>
         <span className="subtitle">
           {mode === 'project'
-            ? `${snapshot.pipelines.length} pipelines`
+            ? sandbox?.mode === 'on' &&
+              sandbox.display === 'selected' &&
+              sandbox.valid &&
+              sandbox.scopeComplete
+              ? `${sandbox.selectedPipelines.length} of ${sandbox.totalPipelines} selected · upstream inputs shown`
+              : `${snapshot.pipelines.length} pipelines`
             : mode === 'data'
-              ? `${currentDatasets?.datasets.length ?? '—'} datasets`
+              ? `${currentDatasets?.datasets.length ?? '—'} datasets · all authored`
               : mode === 'flowgroup'
                 ? 'Action dependencies'
                 : 'Flowgroup dependencies'}
         </span>
       </div>
-      {mode === 'pipeline' && (snapshot.pipelines.length > 1 || !!missingSelection) && (
+      {mode === 'pipeline' && (visiblePipelines.length > 1 || !!missingSelection) && (
         <div className="graph-context-bar">
           <label htmlFor="pipeline-graph-choice">Pipeline</label>
           <select
@@ -116,7 +126,7 @@ export function GraphWorkspace({
                 Choose a current pipeline…
               </option>
             )}
-            {snapshot.pipelines.map((item) => (
+            {visiblePipelines.map((item) => (
               <option key={item.name} value={item.name}>
                 {item.name}
               </option>
@@ -147,7 +157,14 @@ export function GraphWorkspace({
       )}
       {mode === 'project' && (
         <div className="graph-context-bar">
-          <span>Dependencies between pipelines in this project</span>
+          <span>
+            {sandbox?.mode === 'on' &&
+            sandbox.display === 'selected' &&
+            sandbox.valid &&
+            sandbox.scopeComplete
+              ? 'Selected pipelines and their upstream context · Show all changes this view only'
+              : 'Dependencies between pipelines in this project'}
+          </span>
           <span className="toolbar-spacer" />
           <button
             className="button accent-secondary small"
@@ -162,7 +179,7 @@ export function GraphWorkspace({
         <>
           <div className="graph-context-bar">
             <span>
-              Declared datasets for {snapshot.context.environment}; no live warehouse query
+              All authored lineage for {snapshot.context.environment}; no live warehouse query
             </span>
             {currentDatasets?.stale && <span className="badge warn">Lineage may be stale</span>}
             <span className="toolbar-spacer" />

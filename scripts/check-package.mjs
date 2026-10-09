@@ -14,6 +14,10 @@ const required = new Set([
   'extension/media/lhp-mark.svg',
   'extension/media/icon.png',
   'extension/media/activity.svg',
+  'extension/media/tree-pipeline-dark.svg',
+  'extension/media/tree-pipeline-light.svg',
+  'extension/media/tree-flowgroup-dark.svg',
+  'extension/media/tree-flowgroup-light.svg',
   'extension/LICENSE.txt',
   'extension/NOTICE',
 ]);

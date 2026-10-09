@@ -16,7 +16,7 @@ PYTHON = os.environ.get("LHP_TEST_PYTHON", sys.executable)
 class BridgeTests(unittest.TestCase):
     def request(self, operation, root=None, **kwargs):
         payload = dict(
-            protocolVersion=1, id="test-request", operation=operation, **kwargs
+            protocolVersion=2, id="test-request", operation=operation, **kwargs
         )
         if root is not None:
             payload["projectRoot"] = str(root)
@@ -42,6 +42,12 @@ class BridgeTests(unittest.TestCase):
             )
             self.assertEqual(error["code"], "DOCUMENT_PATH")
         self.assertEqual(self.request("shell")["code"], "OPERATION")
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            self.assertEqual(self.request('snapshot', root, documents=[dict(path='.lhp/private.yaml', text='x', version=1)])['code'], 'DOCUMENT_PATH')
+            self.assertEqual(self.request('snapshot', root, documents=[dict(path='.lhp/profile.yaml', text='x' * (2 * 1024 * 1024 + 1), version=1)])['code'], 'DOCUMENT_LIMIT')
+            (root / '.lhp').symlink_to(root, target_is_directory=True)
+            self.assertEqual(self.request('snapshot', root, documents=[dict(path='.lhp/profile.yaml', text='x', version=1)])['code'], 'DOCUMENT_PATH')
 
     def test_real_project_lifecycle_and_unsaved_preview(self):
         health = self.request("health")["result"]
@@ -119,6 +125,25 @@ class BridgeTests(unittest.TestCase):
             self.assertEqual(generation["type"], "result", generation)
             self.assertTrue(generation["result"]["success"], generation)
             self.assertTrue(list((root / "generated/dev").rglob("*.py")))
+            profile = root / '.lhp/profile.yaml'
+            profile.parent.mkdir(exist_ok=True)
+            profile.write_text('sandbox:\n  namespace: alice\n  pipelines:\n    - bronze\n', encoding='utf-8')
+            sandbox_options = dict(pipelineConfigPath='config/pipeline_config.yaml', sandboxEnabled=True)
+            sandbox_snapshot = self.request('snapshot', root, options=sandbox_options)
+            if 'sandbox_editor' not in health['capabilities']:
+                self.assertEqual(sandbox_snapshot['code'], 'SANDBOX_RUNTIME_UPGRADE')
+            else:
+                self.assertEqual(sandbox_snapshot['type'], 'result', sandbox_snapshot)
+                self.assertTrue(sandbox_snapshot['result']['sandbox_enabled'])
+                self.assertEqual(sandbox_snapshot['result']['sandbox']['resolved_pipelines'], ['bronze'])
+                sandbox_data = self.request('data', root, options=sandbox_options)
+                self.assertEqual(sandbox_data['type'], 'result', sandbox_data)
+                self.assertTrue(sandbox_data['result']['sandbox_enabled'])
+                self.assertEqual(sandbox_data['result']['lineage_scope'], 'all-authored')
+                self.assertEqual(sandbox_data['result']['sandbox']['namespace'], 'alice')
+                sandbox_preview = self.request('preview', root, options=sandbox_options)
+                self.assertEqual(sandbox_preview['type'], 'result', sandbox_preview)
+                self.assertTrue(sandbox_preview['result']['files'])
             self.assertEqual(
                 self.request(
                     "generate",

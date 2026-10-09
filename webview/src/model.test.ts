@@ -49,6 +49,27 @@ describe('webview graph models', () => {
     expect(projectGraph({ ...snapshot, pipelineEdges: undefined }).edges).toEqual([]);
   });
 
+  it('keeps an upstream pipeline visible as read-only context without selecting it for generation', () => {
+    const snapshot = {
+      ...demoSnapshot(),
+      pipelineEdges: [
+        {
+          id: 'shared',
+          source: 'bronze_load',
+          target: 'silver_curate',
+          dataset: 'orders',
+          editable: false,
+        },
+      ],
+    };
+    const graph = projectGraph(snapshot, new Set(['silver_curate']));
+    expect(graph.items.map((item) => [item.id, item.kicker, item.readonly])).toEqual([
+      ['bronze_load', 'Shared input · outside scope', true],
+      ['silver_curate', 'Pipeline', false],
+    ]);
+    expect(graph.edges.map((edge) => edge.id)).toEqual(['shared']);
+  });
+
   it('shows declared dataset identities and only matching lineage edges', () => {
     const graph = datasetGraph({
       projectId: 'demo',

@@ -219,6 +219,29 @@ export function enrichResources(
         item.registered = true;
       }
   }
+  for (const [templatePath, relatedFiles] of Object.entries(catalog?.templateRelatedFiles ?? {})) {
+    const template = catalog?.templates.find(
+      (definition) => definition.source.path === templatePath,
+    );
+    if (!template) continue;
+    for (const related of relatedFiles) {
+      if (
+        related.dynamic ||
+        !related.path ||
+        related.path.startsWith('/') ||
+        related.path.split('/').includes('..')
+      )
+        continue;
+      const item = ensure(related.path, related.exists);
+      if (item.kind === 'other')
+        item.kind = related.kind === 'config' ? 'configuration' : related.kind;
+      item.consumers.push({
+        label: `Template ${template.name}${related.actionName ? ` / ${related.actionName}` : ''}`,
+        source: related.referenceSource ?? template.source,
+        template: template.name,
+      });
+    }
+  }
   for (const fg of snapshot?.flowgroups ?? []) {
     const consumer = {
       label: `${fg.pipeline} / ${fg.name}`,
@@ -226,6 +249,9 @@ export function enrichResources(
       pipeline: fg.pipeline,
       flowgroupId: fg.id,
     };
+    ensure(fg.source.path, true).consumers.push(consumer);
+    if (fg.origin.instance && fg.origin.instance.path !== fg.source.path)
+      ensure(fg.origin.instance.path, true).consumers.push(consumer);
     if (fg.origin.definition) ensure(fg.origin.definition.path, true).consumers.push(consumer);
     for (const action of fg.actions) {
       const use = {
@@ -233,12 +259,33 @@ export function enrichResources(
         label: `${consumer.label} / ${action.name}`,
         source: action.source,
         actionId: action.id,
+        instance: fg.origin.instance,
       };
       for (const related of action.relatedFiles) {
+        if (
+          related.dynamic ||
+          !related.path ||
+          related.path.startsWith('/') ||
+          related.path.split('/').includes('..')
+        )
+          continue;
         const item = ensure(related.path, related.exists);
         if (item.kind === 'other')
           item.kind = related.kind === 'config' ? 'configuration' : related.kind;
-        item.consumers.push(use);
+        item.consumers.push({ ...use, source: related.referenceSource ?? action.source });
+        const template = catalog?.templates.find(
+          (definition) => definition.source.path === related.referenceSource?.path,
+        );
+        if (
+          template &&
+          related.referenceSource &&
+          !catalog?.templateRelatedFiles?.[template.source.path]
+        )
+          item.consumers.push({
+            label: `Template ${template.name}`,
+            source: related.referenceSource,
+            template: template.name,
+          });
       }
       for (const preset of Array.isArray(action.raw.presets) ? action.raw.presets : []) {
         const definition = catalog?.presets.find((p) => p.name === preset);
@@ -252,14 +299,34 @@ export function enrichResources(
   }
   return {
     ...index,
-    files: [...files.values()].map((item) => ({
-      ...item,
-      id: resourceId(item.path),
-      consumers: [
+    files: [...files.values()].map((item) => {
+      const consumers = [
         ...new Map(
           item.consumers.map((use) => [JSON.stringify([use.source, use.label]), use]),
         ).values(),
-      ],
-    })),
+      ];
+      const knownUseCount = new Set(
+        consumers.map((use) =>
+          use.template
+            ? `template:${use.template}`
+            : use.flowgroupId
+              ? `flowgroup:${use.flowgroupId}`
+              : JSON.stringify([use.source.path, use.label]),
+        ),
+      ).size;
+      return {
+        ...item,
+        id: resourceId(item.path),
+        consumers,
+        knownUses: consumers,
+        knownUseCount,
+        usageComplete:
+          !!snapshot &&
+          !snapshot.stale &&
+          snapshot.refreshState !== 'failed' &&
+          index.complete &&
+          !['sql', 'python', 'schema', 'expectations'].includes(item.kind),
+      };
+    }),
   };
 }

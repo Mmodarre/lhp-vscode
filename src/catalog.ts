@@ -5,6 +5,7 @@ import type {
   JsonObject,
   JsonValue,
   SourceRef,
+  RelatedFile,
 } from './shared/protocol';
 import { isRecord, isJsonValue } from './shared/guards';
 import { relativePath } from './paths';
@@ -52,6 +53,20 @@ export function sourceRef(root: string, value: unknown): SourceRef {
       },
     };
   return source;
+}
+export function normalizeRelatedFile(root: string, value: unknown): RelatedFile {
+  const file = record(value);
+  const target = sourceRef(root, { path: file.path });
+  const dynamic = /[%$]\{|\{\{/.test(target.path);
+  return {
+    ...target,
+    kind: text(file.kind, 'config') as RelatedFile['kind'],
+    exists: file.exists === true && !dynamic,
+    editable: file.exists === true && !dynamic,
+    referenceSource: file.source ? sourceRef(root, file.source) : undefined,
+    actionName: text(file.action_name) || undefined,
+    dynamic,
+  };
 }
 function dereference(schema: unknown, root: JsonObject): JsonObject {
   let s = jsonObject(schema);
@@ -216,5 +231,11 @@ export function normalizeCatalog(root: string, value: unknown): EditorCatalog {
         ),
       };
     }),
+    templateRelatedFiles: Object.fromEntries(
+      Object.entries(record(data.template_related_files)).map(([filename, value]) => [
+        projectFile(root, filename),
+        items(value).map((entry) => normalizeRelatedFile(root, entry)),
+      ]),
+    ),
   };
 }

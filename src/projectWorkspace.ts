@@ -101,7 +101,15 @@ export class ProjectWorkspace implements vscode.Disposable {
       // walk every action in a large last-good graph on each keystroke.
       const changed = index.files.find((item) => item.path === filename);
       const previous = this.index?.files.find((item) => item.path === filename);
-      const file = changed ? { ...changed, consumers: previous?.consumers ?? [] } : undefined;
+      const file = changed
+        ? {
+            ...changed,
+            consumers: previous?.consumers ?? [],
+            knownUses: previous?.knownUses,
+            knownUseCount: previous?.knownUseCount,
+            usageComplete: false,
+          }
+        : undefined;
       if (this.index)
         this.index = {
           ...this.index,

@@ -5,8 +5,14 @@ export function ignoredProjectPath(relative: string): boolean {
   return ignoredInventoryPath(relative) || relative.startsWith('generated/');
 }
 
+export const SANDBOX_PROFILE_PATH = '.lhp/profile.yaml' as const;
+export function isSandboxProfilePath(relative: string): boolean {
+  return relative === SANDBOX_PROFILE_PATH;
+}
+
 /** Shared eligibility for physical discovery and incremental source events. */
 export function ignoredInventoryPath(relative: string): boolean {
+  if (isSandboxProfilePath(relative) || relative === '.lhp') return false;
   const parts = relative.split('/');
   return (
     parts.some((part) =>

@@ -5,6 +5,9 @@ import { afterEach, describe, expect, it } from 'vitest';
 import { classifyResource, substitutionKeys } from '../../src/resourceClassification';
 import { enrichResources, scanResources, updateResourceFile } from '../../src/resourceIndex';
 import type { EditorCatalog } from '../../src/shared/protocol';
+import { demoSnapshot } from '../../webview/src/demoFixture';
+import { flowgroupFileLinks } from '../../src/sidebarFileLinks';
+import { normalizeRelatedFile } from '../../src/catalog';
 
 const roots: string[] = [];
 async function fixture(): Promise<string> {
@@ -112,5 +115,136 @@ describe('independent physical resource inventory', () => {
     } as unknown as EditorCatalog;
     const enriched = enrichResources({ ...index, complete: false }, catalogue);
     expect(enriched.files.find((item) => item.path === 'templates/known.yaml')?.exists).toBe(true);
+  });
+  it('counts a parameter-provided SQL target across two flowgroups and its shared template', async () => {
+    const root = await fixture();
+    await file(root, 'sql/shared.sql', 'SELECT 1');
+    await file(root, 'templates/reuse.yaml', 'name: reuse\nactions: []\n');
+    await file(root, 'pipelines/one.yaml', 'pipeline: bronze\nflowgroup: one\n');
+    await file(root, 'pipelines/two.yaml', 'pipeline: bronze\nflowgroup: two\n');
+    const referenceSource = { path: 'templates/reuse.yaml', yamlPath: ['actions', 0, 'sql_path'] };
+    const base = demoSnapshot();
+    const groups = ['one', 'two'].map((name) => ({
+      ...base.flowgroups[0]!,
+      id: name,
+      name,
+      pipeline: 'bronze',
+      source: { path: `pipelines/${name}.yaml` },
+      origin: {
+        kind: 'template' as const,
+        definition: { path: 'templates/reuse.yaml' },
+        instance: { path: `pipelines/${name}.yaml` },
+      },
+      actions: [
+        {
+          ...base.flowgroups[0]!.actions[0]!,
+          id: `${name}:sql`,
+          flowgroupId: name,
+          name: 'shared_sql',
+          source: referenceSource,
+          origin: {
+            kind: 'template' as const,
+            definition: { path: 'templates/reuse.yaml' },
+            instance: { path: `pipelines/${name}.yaml` },
+          },
+          relatedFiles: [
+            {
+              path: 'sql/shared.sql',
+              kind: 'sql' as const,
+              exists: true,
+              editable: true,
+              referenceSource,
+            },
+          ],
+        },
+      ],
+    }));
+    const snapshot = { ...base, flowgroups: groups, refreshState: 'ready' as const, stale: false };
+    const catalog = {
+      ...base.catalog,
+      templates: [{ name: 'reuse', source: { path: 'templates/reuse.yaml' }, fields: [] }],
+    };
+    const indexed = enrichResources(
+      await scanResources(root, 'p', { revision: 1 }),
+      catalog,
+      snapshot,
+    );
+    const sql = indexed.files.find((item) => item.path === 'sql/shared.sql')!;
+    expect(sql.knownUseCount).toBe(3);
+    expect(sql.knownUses?.map((use) => use.label)).toContain('Template reuse');
+    expect(sql.knownUses?.filter((use) => use.flowgroupId).map((use) => use.flowgroupId)).toEqual([
+      'one',
+      'two',
+    ]);
+    expect(sql.knownUses?.find((use) => use.template)?.source).toEqual(referenceSource);
+    expect(sql.usageComplete).toBe(false); // Parameter/dynamic references are known-only.
+    expect(
+      groups.every(
+        (group) =>
+          flowgroupFileLinks(group).filter((file) => file.source.path === sql.path).length === 1,
+      ),
+    ).toBe(true);
+  });
+  it('scans only the canonical sandbox profile under .lhp and excludes other private state', async () => {
+    const root = await fixture();
+    await file(root, '.lhp/profile.yaml', 'sandbox:\n  namespace: alice\n  pipelines: [bronze]\n');
+    await file(root, '.lhp/private.yaml', 'secret: excluded');
+    await file(root, '.lhp/nested/profile.yaml', 'secret: excluded');
+    const index = await scanResources(root, 'p', { revision: 1 });
+    expect(index.files.map((item) => item.path)).toEqual(['.lhp/profile.yaml']);
+    expect(index.files[0]?.configurationKind).toBe('profile');
+    expect(await updateResourceFile(root, index, '.lhp/private.yaml', { revision: 2 })).toBe(index);
+  });
+  it('retains a provable SQL usage in an unused template from the public catalogue', async () => {
+    const root = await fixture();
+    await file(root, 'templates/unused.yaml', 'name: unused\nactions: []\n');
+    await file(root, 'sql/unused.sql', 'SELECT 1');
+    const catalog: EditorCatalog = {
+      actions: [],
+      blueprints: [],
+      presets: [],
+      schemas: [],
+      templates: [{ name: 'unused', source: { path: 'templates/unused.yaml' }, fields: [] }],
+      templateRelatedFiles: {
+        'templates/unused.yaml': [
+          {
+            path: 'sql/unused.sql',
+            kind: 'sql',
+            exists: true,
+            editable: true,
+            actionName: 'query',
+            referenceSource: {
+              path: 'templates/unused.yaml',
+              yamlPath: ['actions', 0, 'sql_path'],
+            },
+          },
+          {
+            path: 'sql/%{query}.sql',
+            kind: 'sql',
+            exists: false,
+            editable: false,
+            actionName: 'param_query',
+            dynamic: true,
+            referenceSource: {
+              path: 'templates/unused.yaml',
+              yamlPath: ['actions', 1, 'sql_path'],
+            },
+          },
+        ],
+      },
+    };
+    const indexed = enrichResources(await scanResources(root, 'p', { revision: 1 }), catalog);
+    const sql = indexed.files.find((file) => file.path === 'sql/unused.sql')!;
+    expect(sql.knownUseCount).toBe(1);
+    expect(sql.knownUses?.[0]).toMatchObject({
+      template: 'unused',
+      label: 'Template unused / query',
+      source: { path: 'templates/unused.yaml', yamlPath: ['actions', 0, 'sql_path'] },
+    });
+    expect(sql.usageComplete).toBe(false);
+    expect(indexed.files.some((file) => file.path === 'sql/%{query}.sql')).toBe(false);
+    expect(
+      normalizeRelatedFile(root, { path: 'sql/%{query}.sql', kind: 'sql', exists: false }).dynamic,
+    ).toBe(true);
   });
 });
