@@ -1,8 +1,10 @@
 # Marketplace pre-release handoff
 
-Version 0.3.1 is the first planned Marketplace pre-release of `MEHDIMODARRESSI.lhp-vscode`. The source repository remains `Mmodarre/lhp-vscode`. The prior VSIX used the different extension ID `Mmodarre.lhp-vscode`; it is not an in-place publisher rename. The publisher account, manual Marketplace upload and a live Marketplace installation must be verified separately. A green repository workflow or GitHub release is **not** evidence that the Marketplace listing exists.
+Version 0.3.1 is the first Marketplace pre-release candidate of `MEHDIMODARRESSI.lhp-vscode`. The source repository remains `Mmodarre/lhp-vscode`. The prior VSIX used the different extension ID `Mmodarre.lhp-vscode`; it is not an in-place publisher rename. The account holder confirmed creation of publisher `MEHDIMODARRESSI`. Manual Marketplace upload and a live Marketplace installation remain unverified. A green repository workflow or GitHub release is **not** evidence that the Marketplace listing exists.
 
 This guide follows the [VS Code publishing guide](https://code.visualstudio.com/api/working-with-extensions/publishing-extension) and the repository's release policy. The first upload is manual. `.github/workflows/release.yml` prepares a GitHub pre-release from an exact previously tested CI artifact; it does not authenticate to or publish on the Marketplace.
+
+The [immutable `v0.3.1` GitHub pre-release](https://github.com/Mmodarre/lhp-vscode/releases/tag/v0.3.1) is ready for that manual upload. It points to source `531c474ecaa54efd86c194af3c156d060e93880d`, passing [main CI `37868415981`](https://github.com/Mmodarre/lhp-vscode/actions/runs/37868415981) and passing [release handoff `37869207986`](https://github.com/Mmodarre/lhp-vscode/actions/runs/37869207986). The exact `lhp-vscode-0.3.1.vsix` is 301,706 bytes with SHA256 `945195e60fb71d054983abb86a67ef7901c044cdef5f66d07ae8209fd8b1e9bf`. An isolated VS Code profile installed this CI package and exercised welcome, walkthrough, graph, YAML source/completion and Sandbox display. Marketplace upload and installation still need the steps below.
 
 ## Before the first upload
 
@@ -33,4 +35,4 @@ Automated Marketplace publication is **not configured** in this repository. A la
 
 ## Screenshot provenance
 
-The README's four PNGs are unedited captures from native VS Code 1.106.0 running the independently audited 0.3.0 VSIX in an isolated local profile with a synthetic `retail_demo` project. They show the unchanged authoring UI carried into 0.3.1; no customer project, account, local filesystem path or Databricks session appears. The 0.3.1 publisher and release packaging still require their own CI and Marketplace verification.
+The README's four PNGs are unedited captures from native VS Code 1.106.0 running the independently audited 0.3.0 VSIX in an isolated local profile with a synthetic `retail_demo` project. They show the unchanged authoring UI carried into 0.3.1; no customer project, account, local filesystem path or Databricks session appears. The 0.3.1 package passed its separate CI and exact-VSIX smoke. Marketplace listing and installation verification remain pending.
